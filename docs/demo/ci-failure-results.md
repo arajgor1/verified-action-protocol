@@ -1,6 +1,6 @@
 # CI-failure demo: results (fixture layer)
 
-**Source:** publication candidate `5df8873`, Cloud Build `4c378343-f903-48f0-afe9-b2b8b8d4652f`
+**Source:** publication candidate `61ed3b2`, Cloud Build `a54bbc0a-45b8-413d-8dad-dbaffe86c1d9`
 (suite `demo`): 5 runs per scenario per condition, 180 runs in total, on Node 24.21.0 with 8 vCPUs.
 Raw records are kept in the private evidence bucket. The evidence index is
 [../release/candidate-evidence.md](../release/candidate-evidence.md).
@@ -44,14 +44,16 @@ The four outcome categories are exclusive and add up to 45 runs per condition.
 |---|---|---|---|---|---|---|---|---|---|
 | retry | 5/35 | 5/5 | 0/45 | 35/45 | 35/45 (35) | **35/40** | 45/50 | 0 | 5 / 0 / 0 |
 | careful | 28/35 | 5/5 | 5/45 | 7/45 | 7/45 (7) | **7/35** | 9/45 | 0 | 13 / 10 / 13 |
-| careful_log | 35/35 | 5/5 | 5/45 | 0/45 | 0/45 (0) | 0/35 | 0/45 | 0 | 15 / 20 / 10 |
+| careful_log | 35/35 | 5/5 | 5/45 | 0/45 | 0/45 (0) | 0/35 | 0/45 | 0 | 15 / 19 / 11 |
 | vap | 35/35 | 5/5 | 5/45 | 0/45 | 0/45 (0) | 0/35 | 0/45 | 0 | 25 / 20 / 0 |
 
 - **Retry client:** every API call it reported as successful really did create the issue it named,
   but in 35 of the 40 runs where it claimed the task was done, the contract did not hold because a
   duplicate existed.
 - **Careful client:** varies with timing when two instances run at once (S4). It completed 3 of 5
-  S4 runs here, 2 of 5 in `2738a3f9`, 0 of 5 in `e85838d0` and 2 of 5 in `4c0994e0`.
+  S4 runs here, 3 of 5 in `4c378343`, 2 of 5 in `2738a3f9`, 0 of 5 in `e85838d0` and 2 of 5 in
+  `4c0994e0`. Every other outcome count matches the previous candidate's run (`4c378343`); only
+  the careful_log origin split (15 / 20 / 10 there) and the timings vary between runs.
 - **VAP origins:** every VAP completion after a lost or interrupted reply (S2, S3, S8, S9: 20
   reports) has an *inferred*, not proven, origin.
 
@@ -74,7 +76,7 @@ issues.
 
 The scheduled fault demonstrably fired in all 180 runs.
 
-## Attribution tests (all passed on publication candidate `5df8873`)
+## Attribution tests (all passed on publication candidate `61ed3b2`)
 
 | Test | Outcome |
 |---|---|
@@ -109,7 +111,7 @@ The scheduled fault demonstrably fired in all 180 runs.
 
 ## Cost
 
-- **Normal path (S1):** median 654 ms for VAP against 144–157 ms for the no-VAP policies, timed
+- **Normal path (S1):** median 703 ms for VAP against 179–195 ms for the no-VAP policies, timed
   after runtime start-up. VAP made 9 tool calls (API calls plus the test run) against 4. The extra
   time covers the plan, durable journal writes, and two read-back checks (content and uniqueness)
   that the other policies do not run.
@@ -120,8 +122,8 @@ The scheduled fault demonstrably fired in all 180 runs.
   declared side effects and the grant, not fixed by VAP: this action is tier 3 because watcher
   notifications cannot be recalled.
 - **Crash recovery:** VAP waits for the dead worker's claim to expire (a 3 s lease in the demo;
-  the default is 30 s), which is why S3 takes about 4.1 s.
-- **S7:** VAP escalates after about 12.5 s; the careful policies stop after about 24 s, when their
+  the default is 30 s), which is why S3 takes about 4.3 s.
+- **S7:** VAP escalates after about 12.4 s; the careful policies stop after about 24 s, when their
   8-lookup budget runs out.
 - **Infrastructure:** PostgreSQL plus the API and worker processes.
 

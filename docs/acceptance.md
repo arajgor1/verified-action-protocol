@@ -28,9 +28,9 @@ and [release/candidate-evidence.md](release/candidate-evidence.md).
 | A6 Security, core scope | PASS | Security suite and reviews. No secrets and 0 fixable HIGH/CRITICAL findings in the runtime image. Its 12 unfixed CVEs are dispositioned per finding ([security/vulnerability-dispositions.md](security/vulnerability-dispositions.md)) |
 | A6 Security, browser image | INCOMPLETE (experimental) | The technical assessment is evidence-based (linkage inspection). The four critical findings are absent code, not loaded, or conditional on a D-Bus peer that is not present. Several glib HIGH findings remain **unverified**. Owner acceptance of residual risk is **pending**, so the image is outside the supported scope |
 | A7 Ephemeral staging rehearsal | PASS | Release image by digest inside Cloud Build: migrations with least-privilege roles, OIDC with a rehearsal-local issuer, worker dispatch, SIGKILL restart mid-operation, database container replacement, journal survival, verified cleanup ([release/staging-rehearsal.md](release/staging-rehearsal.md)) |
-| A7 Managed GCP deployment | **BLOCKED** | Not tested. Cloud Run, Cloud SQL, Secret Manager, Scheduler and Google-signed authentication await owner authorization of the bounded plan in [release/managed-staging-plan.md](release/managed-staging-plan.md) |
+| A7 Managed GCP deployment | **PASS** (staging, existing project) | Candidate `61ed3b2`, runtime digest `sha256:be75a821…`, Cloud Build `8f27612f`: Cloud Run API (IAM-protected, OIDC with Google-signed tokens), Cloud Run worker, sweeper and migration jobs, Cloud Scheduler, Cloud SQL PostgreSQL 17 and Secret Manager. Migrations, database and IAM access controls, dispatch, an interruption while verification was demonstrably in flight, restart recovery, reconciliation and journal durability across API and Cloud SQL restarts all passed; every exercise resource was removed afterwards ([release/managed-staging-results.md](release/managed-staging-results.md)). One small shared-core instance, no load, no HA |
 | A8 Fresh-clone onboarding, preconfigured environment | PASS | Two clean-room review rounds with fixes. Quickstart demo, tutorial and integration suite run from a fresh clone in a project with the APIs, IAM and bucket already in place ([release/clean-room-review.md](release/clean-room-review.md)) |
-| A8 Blank-project bootstrap | **UNVERIFIED** | The quickstart's project setup (enabling APIs, IAM grants, bucket creation) and `bootstrap.sh` have never been run from a blank project |
+| A8 Blank-project bootstrap | **UNVERIFIED** | The quickstart's project setup (enabling APIs, IAM grants, bucket creation) and `bootstrap.sh` have never been run from a blank project. The managed exercise used an existing project (creating a billed project was not authorized) and its own provisioning pipeline; it exposed two `bootstrap.sh` gaps, now noted in the script: `sql users create` makes `cloudsqlsuperuser` members, and `sql-component.googleapis.com` was missing |
 | A9 Packaging | PASS | Images by digest with signed SLSA v0.1 and v1 provenance; CycloneDX SBOMs; license inventory; package tarballs; schema bundle; SHA256SUMS; sanitized public copies of the generated artifacts; image-digest gate. Nothing published |
 | A10 Honesty | PASS | Corrected metrics with the logged baseline and measured overhead kept; failed and superseded runs listed; process deviations recorded |
 | Exit propagation | PASS | Negative controls in every test build and in the image gate; the evidence step fails on any failing report |
@@ -59,9 +59,9 @@ and [release/candidate-evidence.md](release/candidate-evidence.md).
 | M4 | IMPLEMENTED | HTTP adapter and fixture; remote tests NOT RUN |
 | M5 | IMPLEMENTED | browser and CLI adapters; remote tests NOT RUN |
 | M6 | IMPLEMENTED | verification, recovery, SDK, MCP bridge; MCP smoke NOT RUN |
-| M7 | IMPLEMENTED / BLOCKED | durable deployment pipeline and sweeper; rehearsal BLOCKED |
+| M7 | PASS (staging) | durable deployment pipeline and sweeper; managed staging gate passed (`8f27612f`) |
 | M8 | PARTIAL | fault and security suites and the deterministic benchmark pass in three runs; image scanning and release hardening pending |
-| M9 | PARTIAL | release image built, scanned and attested (`0d172c5d`); clean-room acceptance and the staging deployment rehearsal are pending; no candidate tag yet |
+| M9 | PARTIAL | release candidate `61ed3b2` built, scanned and attested (`d983d01e`); clean-room onboarding passed in a preconfigured project; managed staging passed; blank-project bootstrap unverified; no tag (owner decision) |
 
 ## Product requirements
 

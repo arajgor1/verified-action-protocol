@@ -13,9 +13,63 @@ stayed disabled and its image was neither deployed nor published.
 Artifact Registry and the evidence bucket, so `bootstrap.sh` and the quickstart's project setup
 remain unverified (acceptance A8). Creating another billed project was not authorized.
 
-## Final candidate run
+## Final candidate run: PASSED
 
-Pending: recorded when the managed gate runs on the publication candidate's runtime image.
+Cloud Build `8f27612f-6e16-4b0c-b350-89757bae8127` (`bash scripts/vap-cloud.sh deploy`), runtime
+image `<registry>/vap/vap@sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70fe410bc192afe87d6`
+built from publication candidate `61ed3b2`. All 16 checked steps passed and the Cloud Run
+resources were deleted.
+
+| Requirement | Evidence |
+|---|---|
+| Migrations | job `vap-migrate-staging` ran as `vap-migrator`: 1 migration, `0001_initial` |
+| Database access control | as `vap_runtime`: journal readable; `CREATE TABLE` refused (`permission denied for schema public`); `DROP TABLE` refused (`must be owner of table`); fixture database refused (`permission denied for database "fixture"`). No application role is a member of `cloudsqlsuperuser` (provisioning `724d7264`) |
+| IAM | API invocable only by `vap-smoke`, no public member; `vap-api` may run only the worker job with overrides; `vap-scheduler` may run only the sweeper job; each secret readable only by the accounts that use it; the exercise accounts' only project-level binding is `cloudsql.client` conditioned on the staging instance. The synthetic fixture was public for the exercise |
+| Google-signed authentication | ID tokens for `vap-smoke` minted through IAM Credentials with `getOpenIdToken` on that account only; VAP ran OIDC verification (issuer, audience = service URL, expiry, signature, verified email); unauthenticated request rejected; Google-signed token with the wrong audience rejected with 401. Test-issuer authentication was not used |
+| Scheduler | sweeper executions started by Cloud Scheduler as `vap-scheduler` (creator recorded by Cloud Run) succeeded: 3 by the time of the check |
+| Dispatch | operation `op_rnJjCBfQOXHZ0CmLEkAc` dispatched through a Cloud Run job execution and ended `verified` |
+| In-flight interruption | operation `op_tkqNwUxcvMWL0rGQ3GdN`: write committed (`dispatch.result` 08:55:30.500), verification polling (`verification.started` 08:55:30.538; the fixture kept the new version invisible for 180 s). The verifying process was job execution `vap-worker-staging-9jm58`, which had been launched for the smoke operation and picked up this operation's outbox item. It was RUNNING (`runningCount: 1`) when cancelled at 08:55:36.726, and Cloud Run recorded `cancelledCount: 1` (completion 08:55:51). The API was moved to a new revision. Verification was still `pending` after both |
+| Restart recovery | verification started again at 08:57:07.217 (after the claim lease expired) and produced its first result at 08:58:30.966: `verified`, 1 submission, 2 `verification.started` events |
+| Reconciliation | operation `op_KzrAkNrpQNIhRDRDs6fe` (reply lost after the write committed): `reconcile.started`, `reconcile.result`, then `verified`, 1 submission, no resubmission |
+| Journal durability | the three operations and their 18 events read back identically before and after a Cloud SQL instance restart (08:59:08), and after the API restart |
+| Cleanup | the gate deleted both services, the three jobs and the scheduler job and verified none remained; `cloudbuild.managed-teardown.yaml` then removed Cloud SQL, the secrets, the bindings and the accounts (see "Teardown and cost") |
+
+**What this does not show.** One region, one small instance tier (shared core, no SLA), no
+load, no high availability, a synthetic destination, and a single interruption per run. The
+worker and sweeper are separate executions of the same image; a crash of Cloud SQL itself
+(as opposed to a restart) was not induced.
+
+## Teardown and cost
+
+**Teardown.** `managed-teardown` run `72b77e7b` deleted the Cloud SQL instance (no final backup),
+the four secrets, the four instance-conditioned project bindings and the six exercise accounts
+(with the token-creator and other bindings on them). Its listing check then still showed
+`vap-smoke`, seconds after the deletion succeeded (IAM listing is eventually consistent), so
+the build reported failure. Direct checks found nothing left, and the idempotent rerun `805dc08e`
+reported every resource absent and verified: no Cloud Run service, job, scheduler job, Cloud SQL
+instance or backup, secret, exercise account or project binding remains. (The verification step
+should retry its listing; that is a follow-up, not part of this candidate.)
+
+**Retained by design:** the evidence objects and the release images (release records). The
+project's APIs enabled for this exercise (`sqladmin`, `sql-component`, `secretmanager`,
+`cloudscheduler`, `cloudresourcemanager`) stay enabled; enabled APIs cost nothing by themselves.
+
+**Spend (estimated; billing data was not readable).** The Cloud Billing API is not enabled and the
+build identity has no billing permissions, so no observed figure is available, and no budget
+alert could be set or checked; budget alerts are notifications, not caps, in any case.
+
+| Item | Usage | Estimate (list prices, us-central1) |
+|---|---|---|
+| Cloud Build, e2-highcpu-8 (tests, releases, image gates, rehearsals) | 73 build-minutes | about $1.14 ($0.0156/min) |
+| Cloud Build, default e2-standard-2 (provisioning, deploys, linkage, teardown) | 96 build-minutes | up to $0.58 ($0.006/min); covered by the 2,500 free minutes per month if unused |
+| Cloud SQL db-f1-micro, 10 GB SSD, about 2.7 h | instance-hours | about $0.04 ($0.0105/h + $0.000233/GiB-h) |
+| Cloud Run, Cloud Scheduler, Secret Manager, logging | a few hundred requests and executions; 1 scheduler job; 4 secrets for about 3 h | cents at most |
+| **Total for the exercise** | | **about $1.20–1.80**, well under the $25 ceiling |
+
+**Continuing cost.** Artifact Registry storage for the repository (about 5.4 GB in total, all
+releases so far, layers shared) at $0.10 per GB-month beyond the free 0.5 GB: about $0.50 a
+month until superseded development images are deleted by the owner. Evidence objects expire
+after 30 days.
 
 ## Development runs (image built from the development branch)
 
