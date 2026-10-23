@@ -272,6 +272,16 @@ steps:
         code=$$(node -e "fetch(require('fs').readFileSync('api-url','utf8').trim()+'/v1/info',{headers:{authorization:'Bearer '+require('fs').readFileSync('/workspace/.vap-token-wrong-aud','utf8')}}).then(r=>console.log(r.status))")
         case "$$code" in 401|403) echo "wrong-audience Google token rejected ($$code)" | tee -a reports/auth-negative.log ;; *) echo "wrong-audience token accepted ($$code)"; exit 1;; esac
         rm -f /workspace/.vap-token-wrong-aud /workspace/.ignored
+        # run.invoker for vap-smoke was granted moments ago; Cloud Run IAM takes time to apply it
+        # (final-candidate run e0f425f5 got 403 on the first call). Wait until the authenticated
+        # call is admitted, up to 5 minutes, and record how long it took.
+        for i in $$(seq 1 60); do
+          code=$$(node -e "fetch(require('fs').readFileSync('api-url','utf8').trim()+'/v1/info',{headers:{authorization:'Bearer '+require('fs').readFileSync('/workspace/.vap-token','utf8')}}).then(r=>console.log(r.status),()=>console.log(0))")
+          [ "$$code" = 200 ] && break
+          sleep 5
+        done
+        [ "$$code" = 200 ] || { echo "authenticated call still refused after 5 minutes (HTTP $$code)"; exit 1; }
+        echo "authenticated call admitted after about $$(( (i - 1) * 5 )) s of IAM propagation" | tee -a reports/auth-negative.log
 
   - id: smoke
     name: ${_NODE}

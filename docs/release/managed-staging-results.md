@@ -27,6 +27,7 @@ Pending: recorded when the managed gate runs on the publication candidate's runt
 | `1706cefd` | `sha256:4b197d15…` | FAILED at interrupt: `executions cancel` reports a cancelled execution as an error although Cloud Run recorded `cancelledCount: 1`. Evidence was lost because Cloud Build uploads artifacts only for successful builds; an explicit upload step was added |
 | `24fc9ae6` | `sha256:4b197d15…` | FAILED (correctly) at the recovery check: the cancelled execution was the one launched for the operation, but another execution draining the shared outbox was verifying it, so the verification finished uninterrupted with one `verification.started`. Fixed by naming worker ids after the Cloud Run execution and cancelling the execution that holds the verification |
 | `606a4298` | `sha256:3110efa3…` | **PASSED**, every check below |
+| `e0f425f5` | `sha256:c6fe8562…` (superseded candidate `661a1b2`) | FAILED at smoke: Cloud Run IAM answered 403 to the first authenticated call, seconds after `run.invoker` was granted to `vap-smoke` (IAM propagation; earlier runs passed only because intermediate steps took longer). The identity step now waits until the call is admitted, up to 5 minutes. The other six gates on `661a1b2` passed |
 
 ### What `606a4298` showed
 
