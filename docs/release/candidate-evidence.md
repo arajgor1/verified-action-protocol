@@ -2,90 +2,87 @@
 
 Sanitized for the public repository:
 - `<registry>` stands for the owner's private Artifact Registry path.
-- Runs are identified by Cloud Build id and run label.
+- Runs are identified by Cloud Build id.
 - Images are identified by digest, which is sufficient to verify them.
-- The exact registry path, project, identities and evidence-object locations are in the
-  operator-only index, kept in the private evidence bucket and not in this repository.
+- The exact registry path, project, identities, evidence-object locations and the mapping to the
+  private development history are in the operator-only index, kept in the private evidence
+  bucket and not in this repository.
 
-Nothing has been published to a package registry or public channel, and repository visibility is
-unchanged.
+Nothing has been published, pushed, tagged or made public.
 
 ## Candidate
 
 | Item | Value |
 |---|---|
-| Tested source commit | `b85d442db55e3c9cd183789641339d5a20ad6ecb` |
-| Runtime image | `<registry>/vap/vap@sha256:6bac81edf14a6c247d324a5b666dfe06aba9d1dbf30198063707f8d8732a021a` |
-| Worker-browser image | `<registry>/vap/vap-worker-browser@sha256:2eb3847db93149e1357fb390ec660d101e48f18e94e4c36331b517e7106e6291` |
-| Image revision label | `org.opencontainers.image.revision=b85d442db55e3c9cd183789641339d5a20ad6ecb` (checked by the image gate and the staging rehearsal) |
+| Validated commit | `5df8873f181fece8afa45b4de83ff78055f352a2`, the root commit of branch `publication/v0.1.0-rc1` (1 commit reachable at validation) |
+| Release scope | core: runtime image, npm packages, schema bundle. Browser adapter and worker-browser image are experimental ([../security/browser-image-assessment.md](../security/browser-image-assessment.md)) |
+| Runtime image (supported) | `<registry>/vap/vap@sha256:a5fc21aa469cd8f265b949a96a12cd5730c6f5bb132ea2a4f09b61ec1667f633`, labels `org.opencontainers.image.revision=5df8873…`, `vap.support=supported` |
+| Worker-browser image (experimental) | `<registry>/vap/vap-worker-browser@sha256:1d2cd1e620d278d4608eb4c84e730d1ab7b59326ea57c51eeb938238453f1fbf`, labels `org.opencontainers.image.revision=5df8873…`, `vap.support=experimental` |
 | Later commits | documentation only; see [manifest.md](manifest.md) |
 
-## Gates on the tested commit
+## Gates on the validated commit
 
-Every run below was submitted from a fresh `git clone` with `scripts/vap-cloud.sh`.
+Every run was submitted with `scripts/vap-cloud.sh` from a fresh single-branch clone of the
+publication branch.
 
-| Gate | Command | Cloud Build | Result |
-|---|---|---|---|
-| Full suite | `test --suite all` | `8446aedb-b0d4-4507-97b8-d91bfc2377fd` | PASS: 151 tests, 0 failed, 0 skipped, as aggregated by the evidence step. Includes the exit-propagation negative controls, the pipeline consistency tests, conformance, faults, security, MCP, browser and demo tests, plus the deterministic benchmark |
-| Demo suite | `test --suite demo` | `2738a3f9-9520-4d27-92d0-78815fc6856e` | PASS: 81 tests; demo sequence 8/8 steps; 180-run comparison ([results](../demo/ci-failure-results.md)) |
-| Release build | `release` | `f73e18d3-cd85-425f-a5f2-fd22b8d5800f` | PASS (details below) |
-| Image gate | `image-gate --image <runtime digest>` | `c9bba95d-16ad-417a-b9ce-bbe793c293bc` | PASS: revision label equals the commit; `docker run` exit propagation verified; demo sequence 8/8 and scenarios 9/9 with the API and worker from the image |
-| Staging rehearsal (ephemeral) | `staging-rehearsal --image <runtime digest>` | `0395220b-e431-46a1-82aa-d5dc0fc027ad` | PASS ([staging-rehearsal.md](staging-rehearsal.md)) |
-| Clean-room quickstart demo | `demo` | `d97cf09a-d9f4-4728-b06d-20addc9627af` | PASS |
-| Clean-room tutorial | `tutorial` | `6fe6bfcb-cc92-4cf4-a5a6-5ce3ef5ea463` | PASS: custom action verified from saved state; task verified complete; request-key replay returned the same operation |
-| Clean-room integration | `test --suite integration` | `874d389f-f1eb-4b84-8afb-be8cbc855cf0` | PASS: 122 tests |
+| Gate | Cloud Build | Result |
+|---|---|---|
+| Full suite (`test --suite all`) | `538bad90-4007-4b03-a5d4-0a687c55765b` | PASS: 153 tests, 0 failed, 0 skipped (aggregated by the evidence step); exit-propagation negative controls; pipeline consistency tests |
+| Demo suite (`test --suite demo`) | `4c378343-f903-48f0-afe9-b2b8b8d4652f` | PASS: 83 tests; demo sequence 8/8; 180-run comparison ([results](../demo/ci-failure-results.md)) |
+| Release (`release --history-ref publication/v0.1.0-rc1 --strict-history`) | `9fea3c08-4559-42cc-8c7c-02cb9ef3038f` | PASS (details below) |
+| Image gate (runtime digest) | `23f2f80a-ee81-4bec-a5c9-b27dd6128592` | PASS: revision and `vap.support=supported` labels checked; `docker run` exit propagation; demo 8/8 and scenarios 9/9 with the API and worker from the image |
+| Ephemeral staging rehearsal (runtime digest) | `75a7534f-0d08-472c-9795-2209c24152b3` | PASS ([staging-rehearsal.md](staging-rehearsal.md)) |
+| Browser linkage (worker-browser digest) | `a11ae226-7d8b-4d17-b45c-44b8eb4b9f60` | PASS ([../security/browser-image-assessment.md](../security/browser-image-assessment.md)) |
+| Clean-room onboarding (`demo`, `tutorial`, `test --suite integration`) | `d97cf09a`, `6fe6bfcb`, `874d389f` on `b85d442` | PASS in a preconfigured project. The onboarding docs and the commands they use are unchanged since then |
 
-**Release build details:**
-- Archive secret scan: clean. Owner identifiers in the tree: none.
-- Full-history scan: no secrets. Owner identifiers in history: **3 commits (advisory; publication
-  blocker)**.
-- Build, typecheck and unit tests.
-- Both images pushed by digest.
-- Chromium launch smoke test inside the worker-browser image.
-- Trivy: 0 fixable HIGH/CRITICAL findings and no secrets in either image. The full inventory,
-  including findings without a fix, is in
-  [../security/vulnerability-dispositions.md](../security/vulnerability-dispositions.md): 12 CVEs
-  in the runtime image, 42 in the worker-browser image.
-- CycloneDX image SBOMs and a license inventory.
-- 5 npm package tarballs and the schema bundle (built, not published).
-- `SHA256SUMS`.
-- Signed SLSA provenance v0.1 and v1 from `https://cloudbuild.googleapis.com/GoogleHostedWorker`
-  (verify with `gcloud artifacts docker images describe <image@digest> --show-provenance`).
+**Release details (`9fea3c08`):**
+- Scans for secret classes and owner identifiers:
+  - the source archive (261 files);
+  - the **full history reachable from the publication branch, in strict mode**;
+  - every file in the five npm package tarballs and the schema bundle;
+  - the configuration and history of both images.
 
-**Staging rehearsal:**
+  None found anything.
+- The Chromium launch smoke test passed inside the worker-browser image.
+- Trivy found 0 fixable HIGH/CRITICAL findings and no secrets in either image. Unfixed findings
+  are assessed per CVE in
+  [../security/vulnerability-dispositions.md](../security/vulnerability-dispositions.md): 12 in
+  the runtime image and 42 in the worker-browser image. Owner acceptance is pending.
+- CycloneDX SBOMs, license inventory (third-party notices), package tarballs, schema bundle.
+- Sanitized `public-*` copies of the SBOMs, scan reports, vulnerability inventories and license
+  inventory, with no owner identifiers left. The private originals are kept beside them.
+- `SHA256SUMS` lists all 25 artifacts by base name and verifies against the uploaded set
+  (checked).
+- Signed SLSA v0.1 and v1 provenance from `https://cloudbuild.googleapis.com/GoogleHostedWorker`.
+
+**Staging rehearsal (`75a7534f`):**
 - Migrations ran as the migration role; the runtime role was refused DDL.
-- The image refused production with isolated test mode, and production with demo authentication.
-- OIDC: a wrong-audience, an expired and an unsigned token were each rejected with 401.
-- A valid token's operation was verified.
-- Mid-flight disruption: one operation awaiting verification and one with a lost reply. The API
-  and worker were then SIGKILLed and the database container replaced.
-- After restart, the pre-crash operation was still present and verified. The verification
-  operation shows two `verification.started` events (interrupted, then resumed) and ended
-  verified. The lost-reply operation was resolved by reconciliation with one attempt and verified;
-  whether that happened before or after the crash cannot be told from its events. No operation was
-  resubmitted.
+- Unsafe production configurations were refused.
+- Wrong-audience, expired and unsigned tokens were rejected with 401 (rehearsal-local OIDC issuer).
+- One operation was verified, then two were disrupted mid-flight (one awaiting verification, one
+  with a lost reply). The API and worker were SIGKILLed and the database container was replaced.
+- After restart, all three operations were present and verified. Verification resumed: two
+  `verification.started` events. The lost reply was resolved by reconciliation with one attempt
+  and no resubmission.
 - Cleanup left no labelled container or volume.
-- Tokens came from a rehearsal-local issuer. Google-signed tokens for the build identity need
-  `roles/iam.serviceAccountTokenCreator`, which is not granted.
 
 ## Superseded and non-passing runs (kept for the record)
 
 | Run | Commit | Status |
 |---|---|---|
-| `6891ab9b`, `e85838d0`, `cd7c6639`, `eaa3cea9` | `8833feb` | passed; superseded |
-| `f3b9c3b8`, `c9f85146`, `e9d71498`, `27320a84` | `35431e1` | passed; superseded (the worker-browser image on the full base had 660 package findings) |
-| `7cd320a6` | `35431e1` | **FAILED**: staging identity step (`--include-email` refused for Cloud Build credentials) |
-| `1dfa2746`, `0b3850e0` | debug | **FAILED**: metadata identity endpoint absent (404); IAM Credentials API refused (403) |
-| `657899cf` | debug | passed (debug run of the staging pipeline, not evidence) |
-| clean-room `5595fef` demo | `5595fef` | **FAILED before any step**: undeclared-reference substitution (fixed; covered by a unit test) |
-| `5a865ed5` | `5939dd8` | reported success but 1 of 24 tests failed (masked); **not a passing gate** ([../process-deviations.md](../process-deviations.md)) |
-| `202fca54` | `5939dd8` | cancelled |
-| `84f04bc5` | `b560899` | hygiene failed (file outside the allowlist); fixed |
+| `9303cae2`, `88011a54` (manifest), `8446aedb`, `2738a3f9`, `f73e18d3`, `c9bba95d`, `0395220b`, `d97cf09a`, `6fe6bfcb`, `874d389f` | `b85d442` | passed; superseded by the publication candidate |
+| `4ca0a6bc`, `4bed48b3`, `e820cdd2`, `53eae8e8`, `908d8caa`, `56771f0f` | `c4c06bb` | passed, but release `e820cdd2` **overwrote 8 private originals** in the evidence location with their sanitized copies (Cloud Build flattens artifact directories). Superseded after the fix ([../process-deviations.md](../process-deviations.md)) |
+| `14de1812`, `185547dc` | browser linkage of `b85d442` | first passed; second failed (script bug, fixed) |
+| `7cd320a6`, `1dfa2746`, `0b3850e0` | `35431e1` and debug | **FAILED**: staging identity attempts (`--include-email` refused; no metadata identity endpoint; IAM Credentials refused without permission) |
+| earlier candidates `8833feb`, `35431e1` and others | | passed or failed as listed in previous versions of this page; superseded |
+| `5a865ed5` | `5939dd8` | reported success with 1 of 24 tests failed (masked); **not a passing gate** |
 
 ## Not covered
 
-- **Managed-service staging deployment:** BLOCKED ([staging-rehearsal.md](staging-rehearsal.md)).
-- **Real GitHub:** BLOCKED ([../demo/real-github-setup.md](../demo/real-github-setup.md)).
-- **Paid Claude comparison:** BLOCKED on model access and a spending ceiling.
-- **Publication, tags, package publishing and visibility changes:** not done; they need the
-  owner's decision.
+- **Managed GCP deployment:** BLOCKED; the plan awaits authorization
+  ([managed-staging-plan.md](managed-staging-plan.md)).
+- **Blank-project bootstrap:** UNVERIFIED.
+- **Real GitHub:** BLOCKED.
+- **Paid Claude comparison:** BLOCKED.
+- **Owner acceptance of residual CVE risk:** pending.
+- **Publication** (pushing the branch, tags, packages, visibility): the owner's decision.

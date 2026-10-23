@@ -1,6 +1,6 @@
 # CI-failure demo: results (fixture layer)
 
-**Source:** release candidate `b85d442`, Cloud Build `2738a3f9-9520-4d27-92d0-78815fc6856e`
+**Source:** publication candidate `5df8873`, Cloud Build `4c378343-f903-48f0-afe9-b2b8b8d4652f`
 (suite `demo`): 5 runs per scenario per condition, 180 runs in total, on Node 24.21.0 with 8 vCPUs.
 Raw records are kept in the private evidence bucket. The evidence index is
 [../release/candidate-evidence.md](../release/candidate-evidence.md).
@@ -43,15 +43,15 @@ The four outcome categories are exclusive and add up to 45 runs per condition.
 | Condition | Completed | Correctly rejected | Safely unresolved | Incorrect | Workflows with duplicates (extra issues) | False task success: runs | False task success: reports | API-level claim failures | Origin observed / inferred / pre-existing |
 |---|---|---|---|---|---|---|---|---|---|
 | retry | 5/35 | 5/5 | 0/45 | 35/45 | 35/45 (35) | **35/40** | 45/50 | 0 | 5 / 0 / 0 |
-| careful | 27/35 | 5/5 | 5/45 | 8/45 | 8/45 (8) | **8/35** | 11/45 | 0 | 12 / 10 / 12 |
+| careful | 28/35 | 5/5 | 5/45 | 7/45 | 7/45 (7) | **7/35** | 9/45 | 0 | 13 / 10 / 13 |
 | careful_log | 35/35 | 5/5 | 5/45 | 0/45 | 0/45 (0) | 0/35 | 0/45 | 0 | 15 / 20 / 10 |
 | vap | 35/35 | 5/5 | 5/45 | 0/45 | 0/45 (0) | 0/35 | 0/45 | 0 | 25 / 20 / 0 |
 
 - **Retry client:** every API call it reported as successful really did create the issue it named,
   but in 35 of the 40 runs where it claimed the task was done, the contract did not hold because a
   duplicate existed.
-- **Careful client:** varies with timing when two instances run at once (S4). It completed 2 of 5
-  S4 runs here, 0 of 5 in `e85838d0` and 2 of 5 in `4c0994e0`.
+- **Careful client:** varies with timing when two instances run at once (S4). It completed 3 of 5
+  S4 runs here, 2 of 5 in `2738a3f9`, 0 of 5 in `e85838d0` and 2 of 5 in `4c0994e0`.
 - **VAP origins:** every VAP completion after a lost or interrupted reply (S2, S3, S8, S9: 20
   reports) has an *inferred*, not proven, origin.
 
@@ -65,7 +65,7 @@ issues.
 | S1 normal | completed | 5/0/0/0 | 5/0/0/0 | 5/0/0/0 | 5/0/0/0 |
 | S2 create accepted, response lost | completed | 0/0/0/5, +5 | 5/0/0/0 | 5/0/0/0 | 5/0/0/0 |
 | S3 crash while the reply is in flight | completed | 0/0/0/5, +5 | 5/0/0/0 | 5/0/0/0 | 5/0/0/0 |
-| S4 two concurrent instances | completed | 0/0/0/5, +5 | 2/0/0/3, +3 | 5/0/0/0 | 5/0/0/0 |
+| S4 two concurrent instances | completed | 0/0/0/5, +5 | 3/0/0/2, +2 | 5/0/0/0 | 5/0/0/0 |
 | S5 rerun with changed payload | completed | 0/0/0/5, +5 | 5/0/0/0 | 5/0/0/0 | 5/0/0/0 |
 | S6 destination rejects | correctly rejected | 0/5/0/0 | 0/5/0/0 | 0/5/0/0 | 0/5/0/0 |
 | S7 response lost, every lookup fails | safely unresolved | 0/0/0/5, +5 | 0/0/5/0 | 0/0/5/0 | 0/0/5/0 |
@@ -74,7 +74,7 @@ issues.
 
 The scheduled fault demonstrably fired in all 180 runs.
 
-## Attribution tests (all passed on candidate `b85d442`)
+## Attribution tests (all passed on publication candidate `5df8873`)
 
 | Test | Outcome |
 |---|---|
@@ -109,18 +109,18 @@ The scheduled fault demonstrably fired in all 180 runs.
 
 ## Cost
 
-- **Normal path (S1):** median 699 ms for VAP against 183–190 ms for the no-VAP policies, timed
+- **Normal path (S1):** median 654 ms for VAP against 144–157 ms for the no-VAP policies, timed
   after runtime start-up. VAP made 9 tool calls (API calls plus the test run) against 4. The extra
   time covers the plan, durable journal writes, and two read-back checks (content and uniqueness)
   that the other policies do not run.
 - **Approvals:** the policy is the same for every condition: one scripted, instantaneous approval
   per planned create. The counts differ because the policies make different numbers of create
-  attempts: retry 55, careful 43, careful_log 35, VAP 40 across 45 runs. **Human approval latency
+  attempts: retry 55, careful 42, careful_log 35, VAP 40 across 45 runs. **Human approval latency
   is excluded from every measured time.** Whether an action needs approval at all is set by its
   declared side effects and the grant, not fixed by VAP: this action is tier 3 because watcher
   notifications cannot be recalled.
 - **Crash recovery:** VAP waits for the dead worker's claim to expire (a 3 s lease in the demo;
-  the default is 30 s), which is why S3 takes about 4.2 s.
+  the default is 30 s), which is why S3 takes about 4.1 s.
 - **S7:** VAP escalates after about 12.5 s; the careful policies stop after about 24 s, when their
   8-lookup budget runs out.
 - **Infrastructure:** PostgreSQL plus the API and worker processes.

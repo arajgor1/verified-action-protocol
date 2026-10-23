@@ -1,5 +1,5 @@
 {
-  "source": "Cloud Build 2738a3f9-9520-4d27-92d0-78815fc6856e, release candidate b85d442, demo/ci-failure/run-demo.ts (fixture layer; URLs under fixture-github.invalid are synthetic)",
+  "source": "Cloud Build 4c378343-f903-48f0-afe9-b2b8b8d4652f, publication candidate 5df8873, demo/ci-failure/run-demo.ts (fixture layer; URLs under fixture-github.invalid are synthetic)",
   "steps": {
     "start": true,
     "uncertainty_reported": true,
@@ -12,8 +12,8 @@
   },
   "receipt": {
     "protocol_version": "0.1",
-    "operation_id": "op_Ge6kNqNmDBof6NRh71f4",
-    "task_id": "tsk_iCWLgHLN9NZ3YQdDyzdT",
+    "operation_id": "op_L4LlfFItGH35bIV7Qzg9",
+    "task_id": "tsk_c5pfCNgzY8w3rpglzSsD",
     "action_id": "github.issues.create_ci_failure",
     "outcome": "verified",
     "execution_status": "completed",
@@ -27,7 +27,7 @@
         "item_index": null,
         "resource_uri": "github://vap-demo/ci-failures/issues/1",
         "side_effect_id": "issue_created",
-        "source_version": "2026-10-23T00:51:51.562Z"
+        "source_version": "2026-10-23T05:10:11.081Z"
       }
     ],
     "checks": [
@@ -36,9 +36,9 @@
         "result": "pass",
         "method": "read_back",
         "source": "github.issues:readback",
-        "source_version": "2026-10-23T00:51:51.562Z",
-        "evidence_id": "evd_YvxfxsDi9Zxagcpnm1d8",
-        "observed_at": "2026-10-23T00:51:55.967Z",
+        "source_version": "2026-10-23T05:10:11.081Z",
+        "evidence_id": "evd_Zm4zGPrUUXErKucJCikz",
+        "observed_at": "2026-10-23T05:10:15.403Z",
         "item_index": null
       },
       {
@@ -47,8 +47,8 @@
         "method": "read_back",
         "source": "github.issues:marker-scan",
         "source_version": null,
-        "evidence_id": "evd_ooD4zXlTmlawFstK4Mrt",
-        "observed_at": "2026-10-23T00:51:55.978Z",
+        "evidence_id": "evd_h51C1M3FnddBtJug0ia6",
+        "observed_at": "2026-10-23T05:10:15.416Z",
         "item_index": null
       }
     ],
@@ -65,6 +65,6 @@
       "disposition": "do_not_retry",
       "explanation": "Completed and every bound check passed."
     },
-    "generated_at": "2026-10-23T00:51:56.196Z"
+    "generated_at": "2026-10-23T05:10:15.626Z"
   }
 }

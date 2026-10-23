@@ -39,3 +39,18 @@ by itself invalidate cloud evidence gathered before or after it; each entry says
   process through `tee`, and the cloud guard. The image gate adds `docker run`. A unit test checks
   that multi-command pipeline steps use `-e`. All passed on candidate `b85d442` (`8446aedb`,
   `c9bba95d`).
+
+## 2026-10-23: release artifacts overwritten in the evidence location
+
+- **What happened:** release `e820cdd2` (publication candidate `c4c06bb`) wrote sanitized copies
+  of eight generated artifacts to `reports/public/` (SBOMs, scan reports, vulnerability
+  inventories, license inventory). Cloud Build uploads artifact files into one flat location, so
+  each copy replaced its private original. `SHA256SUMS` still listed the originals' hashes, so
+  private verification of those eight files was broken for that run. The images and their SLSA
+  provenance were unaffected.
+- **Effect on evidence:** release `e820cdd2` and the gates that depend on its images are not used
+  as release evidence. The candidate was re-exported (`5df8873`) and validated again in full.
+- **Prevention:** sanitized copies are named `public-<file>`. `SHA256SUMS` records base names and
+  the step fails if base names collide. The final release `9fea3c08` was checked: all 25
+  artifacts verify against the uploaded set, the private originals still contain the owner
+  identifiers they need, and the public copies contain none.
