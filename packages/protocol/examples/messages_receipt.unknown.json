@@ -1,0 +1,49 @@
+{
+  "protocol_version": "0.1",
+  "operation_id": "op_demo0000000000000002",
+  "task_id": "tsk_demo0000000000000001",
+  "action_id": "issues.update_owner",
+  "outcome": "unknown",
+  "execution_status": "unknown",
+  "verification_status": "not_requested",
+  "recovery_status": "none",
+  "unresolved": true,
+  "effects": [
+    {
+      "side_effect_id": "owner_changed",
+      "item_index": null,
+      "resource_uri": null,
+      "status": "unknown",
+      "source_version": null,
+      "detail": "reply lost after the request may have been delivered"
+    }
+  ],
+  "checks": [
+    {
+      "id": "owner_matches",
+      "result": "missing",
+      "method": null,
+      "source": null,
+      "source_version": null,
+      "evidence_id": null,
+      "observed_at": null,
+      "item_index": null
+    }
+  ],
+  "unverified_effects": [
+    "issue owner updated [effect unknown]"
+  ],
+  "recovery": {
+    "modes": [
+      "compensate"
+    ],
+    "available": false,
+    "status": "none",
+    "recovery_operation_ids": []
+  },
+  "retry_guidance": {
+    "disposition": "reconcile_first",
+    "explanation": "Effects cannot be established. Reconcile before any retry; if reconciliation cannot resolve it, an operator must."
+  },
+  "generated_at": "2026-10-22T14:00:01.250Z"
+}

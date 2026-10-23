@@ -1,0 +1,16 @@
+{
+  "name": "@vap/sdk",
+  "version": "0.1.0",
+  "description": "VAP TypeScript client, adapter SDK, conformance helpers and vap CLI",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "bin": { "vap": "./dist/cli.js" },
+  "files": ["dist"],
+  "dependencies": {
+    "@vap/core": "0.1.0",
+    "@vap/protocol": "0.1.0"
+  }
+}

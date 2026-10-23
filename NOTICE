@@ -1,0 +1,13 @@
+Verified Action Protocol (VAP) reference implementation
+Copyright 2026 The VAP Contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"VAP" is a provisional project name pending name and package availability checks. This is an
+independent project. It is not an official Model Context Protocol extension, a certification
+body, a compliance product or a universal transaction system.
+
+Third-party dependencies are distributed under their own licenses. The release pipeline
+produces a license inventory (reports/licenses.json) and a CycloneDX SBOM
+(reports/sbom-runtime.cdx.json and reports/sbom-worker-browser.cdx.json, generated from the shipped images) for every release candidate. Choosing Apache-2.0 for original source
+is a project default, not legal clearance.

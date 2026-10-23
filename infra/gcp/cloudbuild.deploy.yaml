@@ -1,0 +1,186 @@
+# Staging deployment rehearsal (spec section 15). Deploys an immutable image digest, runs
+# migrations with the migration identity, deploys the API (IAM-protected), worker job (no
+# infrastructure retries), sweeper job and scheduler, a synthetic fixture, then runs
+# authenticated smoke checks, an API restart and a worker kill mid-operation, collects
+# sanitized evidence, and optionally tears staging down.
+#
+# Prerequisites are created once by infra/gcp/bootstrap.sh (service accounts, Cloud SQL,
+# secrets, Artifact Registry, evidence bucket). Nothing owner-specific is stored here.
+substitutions:
+  _RUN_ID: manual
+  _IMAGE: set-by-caller@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  _ENVIRONMENT: staging
+  _EVIDENCE_BUCKET: set-by-operator
+  _TEARDOWN: "true"
+  _GCLOUD: gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _SQL_INSTANCE: ${PROJECT_ID}:${LOCATION}:vap-${_ENVIRONMENT}
+  _LABELS: vap-env=${_ENVIRONMENT},vap-run=${_RUN_ID},vap-owner=vap-deployer
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+
+timeout: 3600s
+tags: ["vap", "vap-deploy", "run-${_RUN_ID}"]
+
+steps:
+  - id: validate-image
+    name: ${_GCLOUD}
+    entrypoint: bash
+    env: ["IMAGE=${_IMAGE}"]
+    args:
+      - -c
+      - |
+        # The image arrives through env, never interpolated into the script text.
+        RE='^${LOCATION}-docker[.]pkg[.]dev/${PROJECT_ID}/vap/vap@sha256:[0-9a-f]{64}$$'
+        [[ "$$IMAGE" =~ $$RE ]] || { echo "image must be this project's Artifact Registry vap image, by digest"; exit 1; }
+
+  - id: migrate
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        gcloud run jobs deploy vap-migrate-${_ENVIRONMENT} --region=${LOCATION} --image='${_IMAGE}' \
+          --service-account=vap-migrator@${PROJECT_ID}.iam.gserviceaccount.com \
+          --set-cloudsql-instances=${_SQL_INSTANCE} \
+          --set-secrets=VAP_MIGRATION_DATABASE_URL=vap-${_ENVIRONMENT}-migration-database-url:latest \
+          --args=packages/store-postgres/dist/migrate-cli.js --max-retries=0 --task-timeout=600s --labels=${_LABELS}
+        gcloud run jobs execute vap-migrate-${_ENVIRONMENT} --region=${LOCATION} --wait
+
+  - id: fixture
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        # Synthetic destination for the rehearsal only. Fault controls stay disabled.
+        gcloud run deploy vap-fixture-${_ENVIRONMENT} --region=${LOCATION} --image='${_IMAGE}' \
+          --service-account=vap-fixture@${PROJECT_ID}.iam.gserviceaccount.com \
+          --set-cloudsql-instances=${_SQL_INSTANCE} \
+          --set-secrets=FIXTURE_DATABASE_URL=vap-${_ENVIRONMENT}-fixture-database-url:latest \
+          --args=fixtures/issue-tracker/dist/main.js --allow-unauthenticated --max-instances=2 --labels=${_LABELS}
+        gcloud run services describe vap-fixture-${_ENVIRONMENT} --region=${LOCATION} --format='value(status.url)' > /workspace/fixture-url
+
+  - id: worker-and-sweeper
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        FIX=$$(cat /workspace/fixture-url)
+        COMMON="--region=${LOCATION} --image=${_IMAGE} --service-account=vap-worker@${PROJECT_ID}.iam.gserviceaccount.com --set-cloudsql-instances=${_SQL_INSTANCE} --set-secrets=VAP_DATABASE_URL=vap-${_ENVIRONMENT}-database-url:latest,VAP_DIGEST_KEY=vap-${_ENVIRONMENT}-digest-key:latest --set-env-vars=VAP_DEPLOYMENT_ID=${_ENVIRONMENT},VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN=$$FIX,VAP_EVIDENCE_BUCKET=${_EVIDENCE_BUCKET} --max-retries=0 --task-timeout=900s --labels=${_LABELS}"
+        gcloud run jobs deploy vap-worker-${_ENVIRONMENT} $$COMMON --args=apps/worker/dist/main.js,sweep
+        gcloud run jobs deploy vap-sweeper-${_ENVIRONMENT} $$COMMON --args=apps/worker/dist/main.js,sweep
+        gcloud run jobs add-iam-policy-binding vap-worker-${_ENVIRONMENT} --region=${LOCATION}           --member=serviceAccount:vap-api@${PROJECT_ID}.iam.gserviceaccount.com --role=roles/run.jobsExecutorWithOverrides
+        gcloud scheduler jobs describe vap-sweeper-${_ENVIRONMENT} --location=${LOCATION} >/dev/null 2>&1 || \
+        gcloud scheduler jobs create http vap-sweeper-${_ENVIRONMENT} --location=${LOCATION} --schedule='* * * * *' \
+          --uri="https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${LOCATION}/jobs/vap-sweeper-${_ENVIRONMENT}:run" \
+          --http-method=POST --oauth-service-account-email=vap-scheduler@${PROJECT_ID}.iam.gserviceaccount.com
+
+  - id: api
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        FIX=$$(cat /workspace/fixture-url)
+        # The smoke identity is a dedicated low-privilege service account: it is the bootstrap
+        # operator inside VAP and the only principal granted run.invoker on this service.
+        SMOKE=vap-smoke@${PROJECT_ID}.iam.gserviceaccount.com
+        ENV="VAP_DEPLOYMENT_ID=${_ENVIRONMENT},VAP_DISPATCH_MODE=cloud-run-job,VAP_WORKER_JOB=projects/${PROJECT_ID}/locations/${LOCATION}/jobs/vap-worker-${_ENVIRONMENT},VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN=$$FIX,VAP_EVIDENCE_BUCKET=${_EVIDENCE_BUCKET},VAP_BOOTSTRAP_OPERATORS=$$SMOKE,VAP_IMAGE_DIGEST=${_IMAGE}"
+        gcloud run deploy vap-api-${_ENVIRONMENT} --region=${LOCATION} --image='${_IMAGE}' --no-allow-unauthenticated \
+          --service-account=vap-api@${PROJECT_ID}.iam.gserviceaccount.com --set-cloudsql-instances=${_SQL_INSTANCE} \
+          --set-secrets=VAP_DATABASE_URL=vap-${_ENVIRONMENT}-database-url:latest,VAP_DIGEST_KEY=vap-${_ENVIRONMENT}-digest-key:latest \
+          --set-env-vars="$$ENV,VAP_OIDC_AUDIENCE=pending" --max-instances=3 --labels=${_LABELS}
+        URL=$$(gcloud run services describe vap-api-${_ENVIRONMENT} --region=${LOCATION} --format='value(status.url)')
+        gcloud run services update vap-api-${_ENVIRONMENT} --region=${LOCATION} --update-env-vars=VAP_OIDC_AUDIENCE=$$URL
+        echo "$$URL" > /workspace/api-url
+        gcloud run services add-iam-policy-binding vap-api-${_ENVIRONMENT} --region=${LOCATION}           --member=serviceAccount:$$SMOKE --role=roles/run.invoker >/dev/null
+
+  - id: install-smoke
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "npm ci --ignore-scripts && npm run build"]
+
+  - id: identity
+    name: ${_NODE}
+    entrypoint: bash
+    # Google-signed ID tokens for vap-smoke, minted by the build identity (vap-deployer) through
+    # IAM Credentials. Needs only iam.serviceAccounts.getOpenIdToken on vap-smoke
+    # (roles/iam.serviceAccountOpenIdTokenCreator bound on that one account by bootstrap.sh).
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        mkdir -p reports
+        S=vap-smoke@${PROJECT_ID}.iam.gserviceaccount.com
+        node scripts/metadata-identity.mjs "$$(cat api-url)" /workspace/.vap-token /workspace/smoke-subject "$$S"
+        node scripts/metadata-identity.mjs "https://wrong-audience.invalid" /workspace/.vap-token-wrong-aud /workspace/.ignored "$$S"
+        # Google-signed tokens with the wrong audience are refused before VAP sees them.
+        code=$$(node -e "fetch(require('fs').readFileSync('api-url','utf8').trim()+'/v1/info',{headers:{authorization:'Bearer '+require('fs').readFileSync('/workspace/.vap-token-wrong-aud','utf8')}}).then(r=>console.log(r.status))")
+        case "$$code" in 401|403) echo "wrong-audience Google token rejected ($$code)" | tee -a reports/auth-negative.log ;; *) echo "wrong-audience token accepted ($$code)"; exit 1;; esac
+        rm -f /workspace/.vap-token-wrong-aud /workspace/.ignored
+
+  - id: smoke
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "mkdir -p reports && export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) VAP_SMOKE_SUBJECT=$$(cat smoke-subject) && node scripts/smoke.ts basic 2> reports/smoke-basic.log"]
+
+  - id: restart-mid-operation
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) VAP_SMOKE_SUBJECT=$$(cat smoke-subject) && node scripts/smoke.ts start > op-restart.txt"]
+
+  - id: restart-api
+    name: ${_GCLOUD}
+    args: ["run", "services", "update", "vap-api-${_ENVIRONMENT}", "--region=${LOCATION}", "--update-env-vars=VAP_RESTART_MARKER=${BUILD_ID}"]
+
+  - id: kill-worker
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        EXEC=$$(gcloud run jobs executions list --job=vap-worker-${_ENVIRONMENT} --region=${LOCATION} --limit=1 --format='value(metadata.name)')
+        [ -n "$$EXEC" ] && gcloud run jobs executions cancel "$$EXEC" --region=${LOCATION} --quiet || true
+        gcloud run jobs execute vap-sweeper-${_ENVIRONMENT} --region=${LOCATION} --wait
+
+  - id: check-after-restart
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) && node scripts/smoke.ts check $$(cat op-restart.txt) 2> reports/restart-check.log"]
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: bash
+    env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=deploy-${_ENVIRONMENT}", "VAP_IMAGE_DIGEST=${_IMAGE}"]
+    args: ["-c", "rm -f .vap-token && node scripts/evidence.mjs reports"]
+
+  - id: teardown
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        [ "${_TEARDOWN}" = "true" ] || { echo "teardown skipped; resources retained on request"; exit 0; }
+        for s in vap-api-${_ENVIRONMENT} vap-fixture-${_ENVIRONMENT}; do gcloud run services delete $$s --region=${LOCATION} --quiet && echo "deleted service $$s" || echo "FAILED to delete service $$s"; done
+        for j in vap-worker-${_ENVIRONMENT} vap-sweeper-${_ENVIRONMENT} vap-migrate-${_ENVIRONMENT}; do gcloud run jobs delete $$j --region=${LOCATION} --quiet && echo "deleted job $$j" || echo "FAILED to delete job $$j"; done
+        gcloud scheduler jobs delete vap-sweeper-${_ENVIRONMENT} --location=${LOCATION} --quiet && echo "deleted scheduler" || echo "FAILED to delete scheduler"
+        left=$$(gcloud run services list --region=${LOCATION} --filter="metadata.labels.vap-run=${_RUN_ID}" --format='value(metadata.name)'; gcloud run jobs list --region=${LOCATION} --filter="metadata.labels.vap-run=${_RUN_ID}" --format='value(metadata.name)')
+        [ -z "$$left" ] || { echo "labelled resources remain: $$left"; exit 1; }
+        echo "no Cloud Run service or job labelled vap-run=${_RUN_ID} remains"
+        echo "retained: Cloud SQL instance vap-${_ENVIRONMENT}, secrets, evidence bucket (persistent; delete with infra/gcp/teardown.sh)"
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/deploy/${_ENVIRONMENT}/${_RUN_ID}/
+    paths: ["reports/*"]

@@ -1,0 +1,11 @@
+{
+  "protocol_version": "0.1",
+  "error": {
+    "code": "KEY_REUSE_CONFLICT",
+    "message": "request key was already used for a different plan",
+    "retry_disposition": "fix_request",
+    "operation_id": "op_demo0000000000000001",
+    "details": {},
+    "evidence_refs": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "protocol_version": "0.1",
+  "task_id": "tsk_demo0000000000000001",
+  "contract_revision": 1,
+  "verified_complete": false,
+  "reasons": [
+    "check owner_matches has no evidence for contract revision 1",
+    "operation op_demo0000000000000002 is unresolved and could still violate the task constraints"
+  ],
+  "checks": [
+    {
+      "check_id": "owner_matches",
+      "status": "missing",
+      "evidence_id": null,
+      "observed_at": null,
+      "operation_id": null
+    }
+  ],
+  "unresolved_operations": [
+    "op_demo0000000000000002"
+  ],
+  "evaluated_at": "2026-10-22T14:00:02.500Z"
+}

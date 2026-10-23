@@ -1,0 +1,171 @@
+# VAP release check: full history and archive hygiene, build, unit tests, immutable images,
+# SBOM, license inventory, image scans (build and runtime layers), package artifacts, schema
+# bundle and checksums. Submitted by `vap release check --commit <sha>`; the source archive
+# carries a git bundle of all refs so the entire history is scanned here, in the cloud.
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _HISTORY_STRICT: "0"
+  _EVIDENCE_BUCKET: set-by-operator
+  _AR_REPO: vap
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+  _TRIVY: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+  _IMAGE: ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/vap
+  _IMAGE_BROWSER: ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/vap-worker-browser
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  requestedVerifyOption: VERIFIED
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+
+timeout: 3600s
+tags: ["vap", "vap-release", "run-${_RUN_ID}"]
+
+steps:
+  - id: archive-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: history-hygiene
+    name: ${_NODE}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        test -f history.bundle || { echo "history bundle missing; run via vap release check"; exit 1; }
+        git clone --quiet --mirror history.bundle /tmp/history.git
+        # Strict for a publication candidate (the bundle then holds only the publication branch):
+        # owner identifiers anywhere in that history fail the release. Otherwise advisory.
+        if [ "${_HISTORY_STRICT}" = "1" ]; then ADV=0; else ADV=1; fi
+        cd /tmp/history.git && VAP_HISTORY_PRIVATE_ADVISORY=$$ADV node /workspace/scripts/release-hygiene.mjs --history
+        git -C /tmp/history.git for-each-ref --format='%(refname)' > /workspace/history-refs.txt
+        rm -f /workspace/history.bundle
+
+  - id: install
+    name: ${_NODE}
+    entrypoint: npm
+    args: ["ci", "--ignore-scripts"]
+
+  - id: build-and-unit
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "mkdir -p reports && npm run build && npm run typecheck && npm run test:unit"]
+
+  - id: sbom-licenses-packages
+    name: ${_NODE}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        mkdir -p reports/packages
+        npm sbom --sbom-format cyclonedx --omit dev > reports/sbom-source-workspaces.cdx.json
+        node scripts/license-inventory.mjs > reports/licenses.json
+        for p in packages/protocol packages/core packages/sdk packages/store-postgres packages/adapters; do (cd "$$p" && npm pack --pack-destination /workspace/reports/packages >/dev/null); done
+        tar -czf reports/vap-schemas-0.1.tar.gz -C packages/protocol schemas examples
+        # Packaging outputs: secret classes and owner identifiers in every file of every package.
+        for t in reports/packages/*.tgz reports/vap-schemas-0.1.tar.gz; do node scripts/release-hygiene.mjs --content "$$t"; done
+
+  - id: image-runtime
+    name: ${_DOCKER}
+    args: ["build", "--target", "runtime", "--build-arg", "VAP_BUILD_COMMIT=${_COMMIT_SHA}", "--label", "org.opencontainers.image.revision=${_COMMIT_SHA}", "-t", "${_IMAGE}:${_COMMIT_SHA}", "."]
+
+  - id: image-worker-browser
+    name: ${_DOCKER}
+    args: ["build", "--target", "worker-browser", "--build-arg", "VAP_BUILD_COMMIT=${_COMMIT_SHA}", "--label", "org.opencontainers.image.revision=${_COMMIT_SHA}", "-t", "${_IMAGE_BROWSER}:${_COMMIT_SHA}", "."]
+
+  - id: image-build-stage
+    name: ${_DOCKER}
+    args: ["build", "--target", "build", "-t", "vap-build-stage:${_COMMIT_SHA}", "."]
+
+  - id: browser-image-smoke
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        # The shipped worker-browser image must launch its pinned Chromium headless and load a page.
+        docker run --rm --entrypoint node ${_IMAGE_BROWSER}:${_COMMIT_SHA} -e "require('playwright').chromium.launch().then(async b => { const p = await b.newPage(); await p.setContent('<h1>ok</h1>'); const t = await p.textContent('h1'); await b.close(); if (t !== 'ok') process.exit(1); console.log('chromium launched in the worker-browser image'); })"
+
+  - id: scan-images
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        TRIVY="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /workspace/reports:/reports ${_TRIVY} image --quiet"
+        # Shipped images: fixable HIGH/CRITICAL vulnerabilities and any secret fail the release.
+        for pair in runtime=${_IMAGE}:${_COMMIT_SHA} worker-browser=${_IMAGE_BROWSER}:${_COMMIT_SHA}; do
+          name=$${pair%%=*}; img=$${pair#*=}
+          $$TRIVY --scanners vuln,secret --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --output /reports/scan-$$name.txt "$$img"             || { cat /workspace/reports/scan-$$name.txt; exit 1; }
+          # Complete image SBOM: OS packages and every installed Node package.
+          $$TRIVY --format cyclonedx --output /reports/sbom-$$name.cdx.json "$$img"
+          # Full HIGH/CRITICAL inventory, including findings without an available fix. Evidence for
+          # the per-finding dispositions in docs/security/vulnerability-dispositions.md.
+          $$TRIVY --scanners vuln --severity CRITICAL,HIGH --exit-code 0 --format json --output /reports/vulns-all-$$name.json "$$img"
+        done
+        # Build stage (never published): secrets fail the release; vulnerabilities, mostly in the npm
+        # CLI needed to build, are recorded as evidence.
+        $$TRIVY --scanners secret --exit-code 1 --output /reports/scan-build-stage-secrets.txt vap-build-stage:${_COMMIT_SHA}           || { cat /workspace/reports/scan-build-stage-secrets.txt; exit 1; }
+        $$TRIVY --scanners vuln --severity CRITICAL,HIGH --exit-code 0 --output /reports/scan-build-stage-vulns.txt vap-build-stage:${_COMMIT_SHA}
+        docker history --no-trunc ${_IMAGE}:${_COMMIT_SHA} > /workspace/reports/image-history.txt
+        # Image configuration (env, labels, entrypoint) and history must not embed owner identifiers.
+        for img in ${_IMAGE}:${_COMMIT_SHA} ${_IMAGE_BROWSER}:${_COMMIT_SHA}; do
+          cfg=$$(docker inspect --format '{{json .Config}}' "$$img"; docker history --no-trunc --format '{{.CreatedBy}}' "$$img")
+          for lit in $${VAP_PRIVATE_LITERALS//,/ }; do
+            if printf '%s' "$$cfg" | grep -qF "$$lit"; then echo "owner identifier in image configuration or history"; exit 1; fi
+          done
+        done
+        if grep -E -i "(api[_-]?key|token|secret|password)=" /workspace/reports/image-history.txt; then echo "secret-like build argument in image history"; exit 1; fi
+
+  - id: public-artifacts
+    name: ${_NODE}
+    entrypoint: bash
+    env: ["VAP_REGISTRY_PREFIX=${LOCATION}-docker.pkg.dev/${PROJECT_ID}/"]
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        # Publication-ready copies with owner identifiers replaced; originals stay private. Cloud
+        # Build flattens artifact directories on upload, so the copies get distinct file names
+        # (public-<name>) and can never overwrite an original.
+        cd reports && node ../scripts/sanitize-artifacts.mjs . /tmp/public sbom-runtime.cdx.json sbom-worker-browser.cdx.json sbom-source-workspaces.cdx.json           scan-runtime.txt scan-worker-browser.txt vulns-all-runtime.json vulns-all-worker-browser.json licenses.json
+        for f in /tmp/public/*; do cp "$$f" "public-$$(basename "$$f")"; done
+
+  - id: checksums-and-evidence
+    name: ${_NODE}
+    entrypoint: bash
+    env:
+      - BUILD_ID=$BUILD_ID
+      - VAP_SUITE=release
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        cd reports
+        # Cloud Build uploads artifacts into one flat location, so checksums are recorded by base
+        # name (all base names are unique) and verify with `sha256sum -c` in a downloaded copy.
+        dups=$$(find . -type f ! -name SHA256SUMS -printf '%f\n' | sort | uniq -d)
+        [ -z "$$dups" ] || { echo "artifact base names collide: $$dups"; exit 1; }
+        find . -type f ! -name SHA256SUMS -printf '%P\n' | sort | while read -r f; do (cd "$$(dirname "$$f")" && sha256sum "$$(basename "$$f")"); done > SHA256SUMS
+        cd .. && node scripts/evidence.mjs reports
+
+images:
+  - ${_IMAGE}:${_COMMIT_SHA}
+  - ${_IMAGE_BROWSER}:${_COMMIT_SHA}
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/releases/${_COMMIT_SHA}/${_RUN_ID}/
+    paths: ["reports/*", "reports/packages/*"]

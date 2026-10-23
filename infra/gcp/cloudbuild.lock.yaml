@@ -1,0 +1,22 @@
+# M0 helper: resolves the dependency tree in the cloud and returns package-lock.json for a
+# maintainer to review and commit (lockfile-only; no install scripts run).
+substitutions:
+  _RUN_ID: manual
+  _EVIDENCE_BUCKET: set-by-operator
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+options:
+  logging: CLOUD_LOGGING_ONLY
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+timeout: 600s
+tags: ["vap", "vap-lock", "run-${_RUN_ID}"]
+steps:
+  - id: lock
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "mkdir -p reports && npm install --package-lock-only --ignore-scripts && cp package-lock.json reports/ && sha256sum reports/package-lock.json"]
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/lock/${_RUN_ID}/
+    paths: ["reports/package-lock.json"]

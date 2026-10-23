@@ -1,0 +1,105 @@
+# CI-failure demo, Layer B: real GitHub on an owner-approved dedicated demo repository.
+# NOT run by default. The owner supplies the repository and stores a GitHub App installation
+# (scoped to that one repository, Issues: read & write, Metadata: read) in Secret Manager.
+# Secret names are substitutions; values are injected as environment variables only into the
+# step that needs them and never echoed. Created issues are recorded, not closed.
+#
+#   gcloud builds submit <archive> --config infra/gcp/cloudbuild.demo-github.yaml \
+#     --substitutions _RUN_ID=...,_COMMIT_SHA=<sha>,_EVIDENCE_BUCKET=...,_GITHUB_REPOSITORY=owner/repo,\
+#     _SECRET_APP_ID=<name>,_SECRET_INSTALLATION_ID=<name>,_SECRET_PRIVATE_KEY=<name>,_AUTHORIZED=1
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _EVIDENCE_BUCKET: set-by-operator
+  _GITHUB_REPOSITORY: set-by-operator/set-by-operator
+  _GITHUB_AUTHOR_LOGIN: set-by-operator[bot]
+  _SECRET_APP_ID: vap-demo-github-app-id
+  _SECRET_INSTALLATION_ID: vap-demo-github-installation-id
+  _SECRET_PRIVATE_KEY: vap-demo-github-app-private-key
+  _AUTHORIZED: "0"
+  _RUNS: "1"
+  _MAX_ISSUES: "3"
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _POSTGRES: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+    - NPM_CONFIG_UPDATE_NOTIFIER=false
+    - NPM_CONFIG_FUND=false
+
+timeout: 1800s
+tags: ["vap", "vap-demo-github", "run-${_RUN_ID}"]
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/${_SECRET_APP_ID}/versions/latest
+      env: VAP_GITHUB_APP_ID
+    - versionName: projects/${PROJECT_ID}/secrets/${_SECRET_INSTALLATION_ID}/versions/latest
+      env: VAP_GITHUB_APP_INSTALLATION_ID
+    - versionName: projects/${PROJECT_ID}/secrets/${_SECRET_PRIVATE_KEY}/versions/latest
+      env: VAP_GITHUB_APP_PRIVATE_KEY
+
+steps:
+  - id: source-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: postgres
+    name: ${_DOCKER}
+    args: ["run", "-d", "--network=cloudbuild", "--name=vap-pg", "--label=vap-run=${_RUN_ID}", "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "${_POSTGRES}"]
+
+  - id: install-build
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "npm ci --ignore-scripts && npm run build"]
+
+  - id: wait-postgres
+    name: ${_POSTGRES}
+    entrypoint: bash
+    args: ["-c", "for i in $$(seq 1 60); do pg_isready -h vap-pg -U postgres && exit 0; sleep 1; done; exit 1"]
+
+  - id: github-demo
+    name: ${_NODE}
+    entrypoint: bash
+    secretEnv: ["VAP_GITHUB_APP_ID", "VAP_GITHUB_APP_INSTALLATION_ID", "VAP_GITHUB_APP_PRIVATE_KEY"]
+    env:
+      - VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres
+      - VAP_REPORT_DIR=/workspace/reports
+      - VAP_GITHUB_REPOSITORY=${_GITHUB_REPOSITORY}
+      - VAP_GITHUB_AUTHOR_LOGIN=${_GITHUB_AUTHOR_LOGIN}
+      - VAP_GITHUB_DEMO_AUTHORIZED=${_AUTHORIZED}
+      - BUILD_ID=$BUILD_ID
+      - VAP_DEMO_RUNS=${_RUNS}
+      - VAP_GITHUB_MAX_ISSUES=${_MAX_ISSUES}
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        mkdir -p reports
+        case "$$VAP_DEMO_RUNS" in 1|2|3) ;; *) echo "_RUNS must be 1, 2 or 3"; exit 1;; esac
+        node demo/ci-failure/run-github.ts --runs "$$VAP_DEMO_RUNS" --out reports 2>&1 | tee reports/ci-demo-github.log
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: node
+    env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=demo-github"]
+    args: ["scripts/evidence.mjs", "reports"]
+
+  - id: teardown
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["-c", "docker rm -f vap-pg >/dev/null 2>&1 || true"]
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/demo-github/${_RUN_ID}/
+    paths: ["reports/*"]

@@ -1,0 +1,52 @@
+{
+  "name": "vap-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verified Action Protocol (VAP) v0.1 reference runtime and protocol",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "npm@11.6.4",
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "workspaces": [
+    "packages/protocol",
+    "packages/core",
+    "packages/store-postgres",
+    "packages/sdk",
+    "packages/adapters",
+    "apps/api",
+    "apps/worker",
+    "apps/mcp",
+    "fixtures/issue-tracker"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "typecheck": "tsc -b tsconfig.build.json && tsc -p tsconfig.tests.json",
+    "clean": "tsc -b tsconfig.build.json --clean",
+    "test:unit": "node --import ./scripts/cloud-guard.ts --test --test-reporter=spec \"tests/unit/**/*.test.ts\"",
+    "test:conformance": "node --import ./scripts/cloud-guard.ts --test --test-concurrency=1 --test-reporter=spec \"tests/conformance/**/*.test.ts\"",
+    "test:faults": "node --import ./scripts/cloud-guard.ts --test --test-concurrency=1 --test-reporter=spec \"tests/faults/**/*.test.ts\"",
+    "test:security": "node --import ./scripts/cloud-guard.ts --test --test-concurrency=1 --test-reporter=spec \"tests/security/**/*.test.ts\"",
+    "test:browser": "node --import ./scripts/cloud-guard.ts --test --test-concurrency=1 --test-reporter=spec \"tests/browser/**/*.test.ts\"",
+    "test:mcp": "node --import ./scripts/cloud-guard.ts --test --test-concurrency=1 --test-reporter=spec \"tests/mcp/**/*.test.ts\"",
+    "test:demo": "node --import ./scripts/cloud-guard.ts --test --test-concurrency=1 --test-reporter=spec \"tests/demo/**/*.test.ts\"",
+    "test:integration": "npm run test:conformance && npm run test:faults && npm run test:security && npm run test:mcp",
+    "hygiene": "node scripts/release-hygiene.mjs",
+    "bench": "node --import ./scripts/cloud-guard.ts benchmarks/run.ts",
+    "bench:ci-demo": "node --import ./scripts/cloud-guard.ts benchmarks/ci-demo/run.ts",
+    "demo:ci-failure": "node --import ./scripts/cloud-guard.ts demo/ci-failure/run-demo.ts",
+    "migrate": "node packages/store-postgres/dist/migrate-cli.js"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@types/node": "24.19.1",
+    "@types/pg": "8.23.0",
+    "pg": "8.23.1",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "jose": "6.2.12",
+    "zod": "4.6.5"
+  }
+}

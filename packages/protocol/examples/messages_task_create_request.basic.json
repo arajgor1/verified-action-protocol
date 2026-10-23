@@ -1,0 +1,39 @@
+{
+  "protocol_version": "0.1",
+  "goal": "Reassign issue 1001 to bob",
+  "grant_id": "grt_demo0000000000000001",
+  "scope": {
+    "actions": [
+      "issues.update_owner"
+    ],
+    "resources": [
+      "issue://issue-tracker/issues/*"
+    ]
+  },
+  "requirements": [
+    {
+      "id": "req_owner",
+      "text": "Issue 1001 must be owned by bob",
+      "provenance": "user"
+    }
+  ],
+  "required_checks": [
+    {
+      "id": "owner_matches",
+      "method": "read_back",
+      "verifier_id": "http.readback",
+      "target": "issue://issue-tracker/issues/{args.issue_id}",
+      "predicate": {
+        "op": "eq",
+        "path": "/owner",
+        "value": "bob"
+      },
+      "scope": "single",
+      "freshness": {
+        "max_age_seconds": 3600
+      },
+      "deadline_seconds": 10,
+      "provenance": "user"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@vap/protocol",
+  "version": "0.1.0",
+  "description": "VAP 0.1 JSON Schemas, TypeScript types, canonical JSON and error model",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./schemas/*": "./schemas/*"
+  },
+  "files": ["dist", "schemas", "examples"],
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$comment": "CI-failure demo: one GitHub issues adapter. The API base URL and repository are set per run with VAP_GITHUB_API_BASE_URL and VAP_GITHUB_REPOSITORY. auth.type none targets the synthetic fixture; the real-GitHub layer uses adapters.ci-demo.github.json (GitHub App installation token, credentials injected from a secret store by variable name). Contains no credentials.",
+  "github": {
+    "id": "github.issues",
+    "api_base_url": "http://127.0.0.1:8081/gh",
+    "repository": "vap-demo/ci-failures",
+    "auth": { "type": "none" },
+    "allow_private_network": true,
+    "timeout_ms": 15000,
+    "lookup_max_pages": 5,
+    "lookup_window_seconds": 3600,
+    "author_login": "vap-demo-bot"
+  }
+}

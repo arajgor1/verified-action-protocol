@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/approval.schema.json",
+  "title": "Approval",
+  "description": "A single-use decision bound to an exact plan digest. The approver identity comes from authentication, never from the request body, and must differ from the executing principal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "id", "plan_id", "plan_digest", "decision", "approver", "approved_scope", "created_at", "expires_at", "single_use", "consumed_by_operation_id", "note"],
+  "properties": {
+    "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "plan_id": { "$ref": "common.schema.json#/$defs/id" },
+    "plan_digest": { "type": "string", "pattern": "^hmac-sha256:[0-9a-f]{64}$" },
+    "decision": { "type": "string", "enum": ["approved", "denied"] },
+    "approver": { "$ref": "common.schema.json#/$defs/principal" },
+    "approved_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_id", "risk_tier", "resource_uris"],
+      "properties": {
+        "action_id": { "$ref": "common.schema.json#/$defs/action_id" },
+        "risk_tier": { "$ref": "common.schema.json#/$defs/risk_tier" },
+        "resource_uris": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/resource_uri" } }
+      }
+    },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "single_use": { "type": "boolean", "const": true },
+    "consumed_by_operation_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/id" }, { "type": "null" }] },
+    "note": { "type": ["string", "null"], "maxLength": 1024 }
+  }
+}

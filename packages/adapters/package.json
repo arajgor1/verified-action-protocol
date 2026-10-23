@@ -1,0 +1,16 @@
+{
+  "name": "@vap/adapters",
+  "version": "0.1.0",
+  "description": "VAP reference adapters: declarative HTTP, bounded browser (Playwright), registered-command CLI",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "dependencies": {
+    "@vap/core": "0.1.0",
+    "@vap/protocol": "0.1.0",
+    "playwright": "1.63.0"
+  }
+}

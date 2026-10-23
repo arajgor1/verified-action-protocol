@@ -1,0 +1,8 @@
+# Ownership for reviews. Authorization, idempotency, reconciliation, migration and release
+# code needs a reviewer other than the implementer (see GOVERNANCE.md).
+*                               @vap-maintainers
+/packages/core/                 @vap-maintainers @vap-security
+/packages/store-postgres/       @vap-maintainers @vap-security
+/apps/api/src/auth.ts           @vap-security
+/infra/                         @vap-maintainers @vap-security
+/scripts/release-hygiene.mjs    @vap-security

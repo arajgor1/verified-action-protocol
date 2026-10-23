@@ -1,0 +1,85 @@
+# Maintainer-dispatched cloud tests for an exact commit (including fork PR heads).
+#
+# Untrusted PR code never runs in a privileged context here: this workflow is triggered only
+# by workflow_dispatch from a protected environment, uses the trusted Cloud Build config from
+# the default branch, and authenticates with keyless Workload Identity Federation restricted to
+# this repository and protected refs, into a separate low-privilege test project that has no
+# deploy rights, package publishing rights or production secrets.
+#
+# Until a maintainer dispatches it, the required "vap/cloud-tests" status shows as expected
+# (pending) on pull requests.
+name: cloud-test
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact commit SHA to test
+        required: true
+      suite:
+        description: unit | integration | browser | all
+        required: false
+        default: all
+
+permissions:
+  contents: read
+  id-token: write
+  statuses: write
+
+concurrency:
+  group: cloud-test-${{ inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    environment: cloud-test
+    timeout-minutes: 45
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate and fetch the commit under test
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "sha must be a full 40-character commit"; exit 1; }
+          git fetch --no-tags origin "$SHA"
+          git archive --format=tar.gz -o "$RUNNER_TEMP/source.tar.gz" "$SHA"
+
+      - name: Authenticate (keyless)
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.VAP_WIF_PROVIDER }}
+          service_account: ${{ vars.VAP_CI_SUBMITTER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Submit cloud tests with the trusted config
+        id: build
+        env:
+          SHA: ${{ inputs.sha }}
+          SUITE: ${{ inputs.suite }}
+          PROJECT: ${{ vars.VAP_TEST_PROJECT }}
+          REGION: ${{ vars.VAP_TEST_REGION }}
+          BUCKET: ${{ vars.VAP_TEST_EVIDENCE_BUCKET }}
+        run: |
+          [[ "$SUITE" =~ ^(unit|integration|browser|all)$ ]] || exit 1
+          RUN="gh${GITHUB_RUN_ID}"
+          gcloud builds submit "$RUNNER_TEMP/source.tar.gz" --project="$PROJECT" --region="$REGION" \
+            --config=infra/gcp/cloudbuild.test.yaml \
+            --substitutions="_RUN_ID=$RUN,_COMMIT_SHA=$SHA,_SUITE=$SUITE,_EVIDENCE_BUCKET=$BUCKET"
+
+      - name: Report status on the commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+          OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          STATE=$([ "$OUTCOME" = "success" ] && echo success || echo failure)
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${SHA}" -f state="$STATE" -f context="vap/cloud-tests" \
+            -f description="Cloud Build ${STATE} (run ${GITHUB_RUN_ID})" -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"

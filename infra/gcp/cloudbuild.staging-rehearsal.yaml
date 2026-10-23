@@ -1,0 +1,190 @@
+# Ephemeral staging rehearsal against an exact release image digest, entirely inside one Cloud
+# Build (no Cloud Run, Cloud SQL, Secret Manager or Scheduler, so no persistent resources and no
+# cost beyond build minutes). It exercises:
+#   - migrations, applied by a migration identity, with a runtime identity that cannot run DDL;
+#   - startup refusal of unsafe production configurations;
+#   - OIDC authentication with a real Google-issued ID token (unauthenticated requests rejected);
+#   - worker dispatch through the outbox, by a separate worker process;
+#   - restart recovery: API and worker SIGKILLed while operations are mid-flight (one awaiting
+#     verification, one with a lost reply), the database container replaced;
+#   - durable journal survival on a named volume, then honest final states after restart;
+#   - cleanup, verified by label.
+# The managed-service deployment (infra/gcp/cloudbuild.deploy.yaml) needs bootstrap
+# infrastructure and owner authorization; see docs/release/staging-rehearsal.md.
+#
+#   bash scripts/vap-cloud.sh staging-rehearsal --commit <sha> --image <registry>/vap/vap@sha256:<digest>
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _IMAGE: set-by-operator
+  _EVIDENCE_BUCKET: set-by-operator
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _POSTGRES: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+    - VAP_IMAGE_DIGEST=${_IMAGE}
+    - IMAGE=${_IMAGE}
+    - RUN_ID=${_RUN_ID}
+    - PG_IMAGE=${_POSTGRES}
+    - NPM_CONFIG_UPDATE_NOTIFIER=false
+
+timeout: 2400s
+tags: ["vap", "vap-staging-rehearsal", "run-${_RUN_ID}"]
+
+steps:
+  - id: source-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: image-identity
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        docker pull "$$IMAGE"
+        rev=$$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$$IMAGE")
+        [ "$$rev" = "${_COMMIT_SHA}" ] || { echo "image was not built from ${_COMMIT_SHA}"; exit 1; }
+        echo "image revision label matches ${_COMMIT_SHA}"
+
+  - id: identity
+    name: ${_NODE}
+    entrypoint: bash
+    # Google-signed ID tokens for the build identity need roles/iam.serviceAccountTokenCreator
+    # (not granted), so a rehearsal-local issuer signs the tokens. The API verifies them through the
+    # same OIDC path: JWKS signature, issuer, audience, expiry and verified email. Tokens and the
+    # private key stay in build-local files that are never printed and are removed at cleanup.
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        echo "rehearsal-operator@vap-rehearsal.invalid" > /workspace/smoke-subject
+        node scripts/rehearsal-issuer.mjs keys /workspace/.issuer /workspace/.issuer-public
+        I=http://vap-issuer:8090; A=vap-staging-rehearsal; E=$$(cat /workspace/smoke-subject)
+        node scripts/rehearsal-issuer.mjs mint /workspace/.issuer $$I $$A $$E /workspace/.vap-token
+        node scripts/rehearsal-issuer.mjs mint /workspace/.issuer $$I wrong-audience $$E /workspace/.vap-token-wrong-aud
+        node scripts/rehearsal-issuer.mjs mint /workspace/.issuer $$I $$A $$E /workspace/.vap-token-expired --expired
+        node scripts/rehearsal-issuer.mjs mint /workspace/.issuer $$I $$A $$E /workspace/.vap-token-unsigned --unsigned
+
+  - id: database
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "database"]
+
+  - id: migrate
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "migrate"]
+
+  - id: runtime-env
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "env"]
+
+  - id: refuse-unsafe
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "refuse-unsafe"]
+
+  - id: start
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "start"]
+
+  - id: install-client
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "npm ci --ignore-scripts && npm run build"]
+
+  - id: smoke-basic
+    name: ${_NODE}
+    entrypoint: bash
+    env: ["VAP_URL=http://vap-api:8080", "VAP_FIXTURE_URL=http://vap-fixture:8081"]
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        mkdir -p reports
+        for i in $$(seq 1 60); do node -e "fetch('http://vap-api:8080/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && break; sleep 1; done
+        # Tokens with the wrong audience, an expired token and an unsigned token are all rejected.
+        for t in wrong-aud expired unsigned; do
+          code=$$(node -e "fetch('http://vap-api:8080/v1/info',{headers:{authorization:'Bearer '+require('fs').readFileSync('/workspace/.vap-token-$$t','utf8')}}).then(r=>console.log(r.status))")
+          [ "$$code" = "401" ] || { echo "token $$t was not rejected (HTTP $$code)"; exit 1; }
+          echo "token $$t rejected with 401" | tee -a reports/auth-negative.log
+        done
+        export VAP_SMOKE_SUBJECT=$$(cat smoke-subject)
+        node scripts/smoke.ts basic > op-basic.txt 2> reports/smoke-basic.log
+        echo "basic operation verified: $$(cat op-basic.txt)"
+
+  - id: start-disrupted-operations
+    name: ${_NODE}
+    entrypoint: bash
+    env: ["VAP_URL=http://vap-api:8080", "VAP_FIXTURE_URL=http://vap-fixture:8081", "VAP_SMOKE_FIXTURE_CONTROL=http://vap-fixture:8082"]
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        export VAP_SMOKE_SUBJECT=$$(cat smoke-subject)
+        # A: the write commits but stays invisible for 25 s, so verification is in progress.
+        VAP_SMOKE_FAULT='{"mode":"delay_visibility","count":1,"delay_ms":25000}' node scripts/smoke.ts start > op-verify.txt 2>> reports/smoke-start.log
+        # B: the write commits and the reply is dropped, so the outcome is unknown.
+        VAP_SMOKE_FAULT='{"mode":"lost_reply","count":1}' node scripts/smoke.ts start > op-lost.txt 2>> reports/smoke-start.log
+        sleep 2
+        echo "started $$(cat op-verify.txt) and $$(cat op-lost.txt)"
+
+  - id: crash
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["-c", "set -e; bash scripts/staging-ephemeral.sh logs && mv reports/container-vap-api.log reports/before-crash-api.log && mv reports/container-vap-worker.log reports/before-crash-worker.log && bash scripts/staging-ephemeral.sh crash"]
+
+  - id: restart
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "restart"]
+
+  - id: check-after-restart
+    name: ${_NODE}
+    entrypoint: bash
+    env: ["VAP_URL=http://vap-api:8080", "VAP_FIXTURE_URL=http://vap-fixture:8081"]
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        for i in $$(seq 1 60); do node -e "fetch('http://vap-api:8080/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && break; sleep 1; done
+        # Journal survival: the operation completed before the crash is still there and verified.
+        node scripts/smoke.ts check $$(cat op-basic.txt) 2> reports/check-basic.log
+        node scripts/smoke.ts check $$(cat op-verify.txt) 2> reports/check-verify.log
+        node scripts/smoke.ts check $$(cat op-lost.txt) 2> reports/check-lost.log
+        echo "all operations reached an honest final state after the crash"
+
+  - id: logs
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["scripts/staging-ephemeral.sh", "logs"]
+
+  - id: cleanup
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["-c", "set -eo pipefail; bash scripts/staging-ephemeral.sh cleanup 2>&1 | tee reports/cleanup.log"]
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: node
+    env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=staging-rehearsal"]
+    args: ["scripts/evidence.mjs", "reports"]
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/staging-rehearsal/${_RUN_ID}/
+    paths: ["reports/*"]

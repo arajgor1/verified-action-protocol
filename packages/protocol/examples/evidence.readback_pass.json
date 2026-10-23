@@ -1,0 +1,34 @@
+{
+  "protocol_version": "0.1",
+  "id": "evd_demo0000000000000001",
+  "operation_id": "op_demo0000000000000001",
+  "task_id": "tsk_demo0000000000000001",
+  "task_revision": 1,
+  "check_id": "owner_matches",
+  "item_index": null,
+  "verifier_id": "http.readback",
+  "verifier_version": "0.1.0+cfg.3a1f9c2b7d40",
+  "method": "read_back",
+  "observed_at": "2026-10-22T14:00:02.500Z",
+  "result": "pass",
+  "source": "http.issue_tracker:readback",
+  "source_version": "18",
+  "freshness": "fresh",
+  "observed_facts": {
+    "/owner": "bob",
+    "/version": 18,
+    "_target": "issue://issue-tracker/issues/1001"
+  },
+  "artifact_ref": {
+    "digest": "sha256:9d5ed678fe57bcca610140957afab571f2e6b1e0a4f2f9c7e2a0d6c1b3e5f7a9",
+    "object_id": "pg:9d5ed678fe57bcca610140957afab571f2e6b1e0a4f2f9c7e2a0d6c1b3e5f7a9",
+    "bytes": 212
+  },
+  "limitations": [
+    "verifier runs inside the VAP runtime process; this is a distinct read of persisted state, not organizational or cryptographic independence",
+    "destination reads are eventually consistent"
+  ],
+  "attributed_to": null,
+  "independence": "same_process",
+  "created_at": "2026-10-22T14:00:02.500Z"
+}

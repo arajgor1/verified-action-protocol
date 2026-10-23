@@ -1,0 +1,70 @@
+{
+  "source": "Cloud Build 2738a3f9-9520-4d27-92d0-78815fc6856e, release candidate b85d442, demo/ci-failure/run-demo.ts (fixture layer; URLs under fixture-github.invalid are synthetic)",
+  "steps": {
+    "start": true,
+    "uncertainty_reported": true,
+    "no_blind_retry_while_invisible": true,
+    "resumed_same_operation": true,
+    "reconciliation_found_issue": true,
+    "content_verified": true,
+    "create_accepted_response_lost": true,
+    "one_matching_issue": true
+  },
+  "receipt": {
+    "protocol_version": "0.1",
+    "operation_id": "op_Ge6kNqNmDBof6NRh71f4",
+    "task_id": "tsk_iCWLgHLN9NZ3YQdDyzdT",
+    "action_id": "github.issues.create_ci_failure",
+    "outcome": "verified",
+    "execution_status": "completed",
+    "verification_status": "passed",
+    "recovery_status": "none",
+    "unresolved": false,
+    "effects": [
+      {
+        "detail": "origin inferred, not proven",
+        "status": "applied",
+        "item_index": null,
+        "resource_uri": "github://vap-demo/ci-failures/issues/1",
+        "side_effect_id": "issue_created",
+        "source_version": "2026-10-23T00:51:51.562Z"
+      }
+    ],
+    "checks": [
+      {
+        "id": "issue.content",
+        "result": "pass",
+        "method": "read_back",
+        "source": "github.issues:readback",
+        "source_version": "2026-10-23T00:51:51.562Z",
+        "evidence_id": "evd_YvxfxsDi9Zxagcpnm1d8",
+        "observed_at": "2026-10-23T00:51:55.967Z",
+        "item_index": null
+      },
+      {
+        "id": "issue.unique",
+        "result": "pass",
+        "method": "read_back",
+        "source": "github.issues:marker-scan",
+        "source_version": null,
+        "evidence_id": "evd_ooD4zXlTmlawFstK4Mrt",
+        "observed_at": "2026-10-23T00:51:55.978Z",
+        "item_index": null
+      }
+    ],
+    "unverified_effects": [
+      "GitHub may notify repository watchers; notifications cannot be recalled (not observable by this adapter)"
+    ],
+    "recovery": {
+      "modes": [],
+      "available": false,
+      "status": "none",
+      "recovery_operation_ids": []
+    },
+    "retry_guidance": {
+      "disposition": "do_not_retry",
+      "explanation": "Completed and every bound check passed."
+    },
+    "generated_at": "2026-10-23T00:51:56.196Z"
+  }
+}

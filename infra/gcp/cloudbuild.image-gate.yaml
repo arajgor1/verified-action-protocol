@@ -1,0 +1,110 @@
+# Release gate against an exact image digest: pulls the release image by digest, checks that its
+# revision label equals the commit under test, and runs the CI-failure demo sequence and every
+# fault scenario with the API and worker processes taken from that image (VAP_DEMO_RUNTIME_ROOT=
+# /app), driven by the test harness from the same commit's source.
+#
+#   bash scripts/vap-cloud.sh image-gate --commit <sha> --image <region>-docker.pkg.dev/<project>/vap/vap@sha256:<digest>
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _IMAGE: set-by-operator
+  _EVIDENCE_BUCKET: set-by-operator
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _POSTGRES: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+    - VAP_IMAGE_DIGEST=${_IMAGE}
+    - NPM_CONFIG_UPDATE_NOTIFIER=false
+    - NPM_CONFIG_FUND=false
+
+timeout: 2400s
+tags: ["vap", "vap-image-gate", "run-${_RUN_ID}"]
+
+steps:
+  - id: source-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: image-identity
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        case "${_IMAGE}" in *@sha256:*) ;; *) echo "_IMAGE must be a digest reference"; exit 1;; esac
+        docker pull "${_IMAGE}"
+        rev=$$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${_IMAGE}")
+        echo "image revision label: $$rev"
+        [ "$$rev" = "${_COMMIT_SHA}" ] || { echo "image was not built from ${_COMMIT_SHA}"; exit 1; }
+        sup=$$(docker inspect --format '{{ index .Config.Labels "vap.support" }}' "${_IMAGE}")
+        [ "$$sup" = "supported" ] || { echo "image is not labelled vap.support=supported ($$sup)"; exit 1; }
+        mkdir -p reports && docker inspect --format '{{ json .RepoDigests }}' "${_IMAGE}" > reports/image-repo-digests.json
+        # Negative control: a failing process inside the image must fail this step's wrapper.
+        if docker run --rm --entrypoint node "${_IMAGE}" -e 'process.exit(7)'; then echo "docker run swallowed a failure"; exit 1; fi
+        if bash -c "set -eo pipefail; docker run --rm --entrypoint node '${_IMAGE}' -e 'process.exit(7)' | tee /dev/null"; then echo "docker run | tee swallowed a failure"; exit 1; fi
+        echo "docker run exit propagation verified"
+
+  - id: postgres
+    name: ${_DOCKER}
+    args: ["run", "-d", "--network=cloudbuild", "--name=vap-pg", "--label=vap-run=${_RUN_ID}", "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "${_POSTGRES}", "-c", "max_connections=300"]
+
+  - id: install-build
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "npm ci --ignore-scripts && npm run build"]
+
+  - id: wait-postgres
+    name: ${_POSTGRES}
+    entrypoint: bash
+    args: ["-c", "for i in $$(seq 1 60); do pg_isready -h vap-pg -U postgres && exit 0; sleep 1; done; exit 1"]
+
+  - id: image-demo
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        docker run --rm --network=cloudbuild -u 0 -v /workspace:/w -w /w \
+          -e VAP_CLOUD_EXECUTION=1 -e VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres \
+          -e VAP_DEMO_RUNTIME_ROOT=/app -e COMMIT_SHA=${_COMMIT_SHA} -e BUILD_ID=$BUILD_ID -e VAP_GATE_IMAGE=${_IMAGE} \
+          --entrypoint node "${_IMAGE}" demo/ci-failure/run-demo.ts --out /w/reports 2>&1 | tee reports/image-demo.log
+
+  - id: image-scenarios
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        docker run --rm --network=cloudbuild -u 0 -v /workspace:/w -w /w \
+          -e VAP_CLOUD_EXECUTION=1 -e VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres \
+          -e VAP_DEMO_RUNTIME_ROOT=/app -e COMMIT_SHA=${_COMMIT_SHA} -e BUILD_ID=$BUILD_ID -e VAP_GATE_IMAGE=${_IMAGE} \
+          --entrypoint node "${_IMAGE}" demo/ci-failure/run-scenarios.ts --condition vap --repeats 1 --out /w/reports 2>&1 | tee reports/image-scenarios.log
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: node
+    env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=image-gate"]
+    args: ["scripts/evidence.mjs", "reports"]
+
+  - id: teardown
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["-c", "docker rm -f vap-pg >/dev/null 2>&1 || true"]
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/image-gates/${_RUN_ID}/
+    paths: ["reports/*"]

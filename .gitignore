@@ -1,0 +1,38 @@
+# dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# local runtime state, never the durable journal
+.vap/
+workspaces/
+evidence-artifacts/
+benchmark-results/
+release-out/
+
+# generic secret classes (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*-key.json
+*credentials*
+*secret*
+!**/redact*
+id_rsa*
+id_ed25519*
+.npmrc
+.gcloud/
+operator.local.*
+vap.config.json
+history.bundle
+
+# editor / os
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,8 @@
+{
+  "name": "vap-ci-demo-sample",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Synthetic project with one deliberately failing test, used by the VAP CI-failure demo.",
+  "type": "module",
+  "scripts": { "test": "node --test" }
+}
