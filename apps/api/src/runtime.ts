@@ -16,7 +16,10 @@ export interface Runtime {
 }
 
 export function newWorkerId(prefix = "wk"): string {
-  return `${prefix}-${hostname().slice(0, 24)}-${process.pid}-${randomBytes(4).toString("hex")}`;
+  // On Cloud Run the hostname is "localhost"; the job execution or service revision name makes
+  // every journal entry attributable to the process that wrote it.
+  const host = process.env.CLOUD_RUN_EXECUTION ?? process.env.K_REVISION ?? hostname();
+  return `${prefix}-${host.slice(0, 48)}-${process.pid}-${randomBytes(4).toString("hex")}`;
 }
 
 /** Wires journal, adapters, artifact store, executor and coordinator from configuration. */

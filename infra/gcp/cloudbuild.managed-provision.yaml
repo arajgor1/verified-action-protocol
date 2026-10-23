@@ -1,0 +1,202 @@
+# Provisions the persistent prerequisites of one managed staging exercise in an existing project
+# (docs/release/managed-staging-plan.md, section 1). Runs as the project's build identity, which
+# deploys afterwards; no deployer account or project-level Run/Scheduler admin role is created.
+#
+# Creates, each only if missing and each labelled vap-env/vap-run/vap-expires:
+#   - service accounts vap-api, vap-worker, vap-migrator, vap-fixture, vap-scheduler, vap-smoke;
+#   - Cloud SQL PostgreSQL 17 vap-<env> (db-f1-micro, Enterprise, 10 GB SSD without auto-increase,
+#     daily backup with 1 retained, PITR with 1 day of logs, no final backup on delete);
+#   - least-privilege database roles over SQL (not `gcloud sql users create`, whose users join
+#     cloudsqlsuperuser): vap_migrator owns database vap, vap_runtime gets DML only, vap_fixture
+#     owns database fixture. The postgres password used for this is rotated to a discarded value;
+#   - four Secret Manager secrets, generated here and never printed;
+#   - IAM bindings scoped to one instance, one secret or one account (section 2 of the plan).
+# Removed again by infra/gcp/cloudbuild.managed-teardown.yaml.
+#
+#   bash scripts/vap-cloud.sh managed-provision --expires <unix seconds>
+substitutions:
+  _RUN_ID: manual
+  _ENVIRONMENT: staging
+  _EXPIRES: "0"
+  _EVIDENCE_BUCKET: set-by-operator
+  _GCLOUD: gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+  _POSTGRES: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+  _SQL_PROXY: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.26.2@sha256:e8c76356fb586300c63f0d29c8c75cfeeba33c29736f9d4afa2df2d78cd0fa19
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
+    - E=${_ENVIRONMENT}
+    - P=${PROJECT_ID}
+    - R=${LOCATION}
+    - LABELS=vap-env=${_ENVIRONMENT},vap-run=${_RUN_ID},vap-expires=${_EXPIRES}
+
+timeout: 2400s
+tags: ["vap", "vap-managed-provision", "run-${_RUN_ID}"]
+
+steps:
+  - id: guard
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        [[ "$$E" =~ ^[a-z][a-z0-9-]{1,20}$$ ]] || { echo "invalid environment"; exit 1; }
+        [[ "${_EXPIRES}" =~ ^[0-9]{10}$$ ]] && [ "${_EXPIRES}" -gt "$$(date +%s)" ] || { echo "_EXPIRES must be a future unix time"; exit 1; }
+        mkdir -p /workspace/reports
+        echo "environment $$E, teardown deadline $$(date -u -d @${_EXPIRES} +%FT%TZ)" | tee /workspace/reports/provision.log
+
+  - id: service-accounts
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        for a in vap-api vap-worker vap-migrator vap-fixture vap-scheduler vap-smoke; do
+          if gcloud iam service-accounts describe "$$a@$$P.iam.gserviceaccount.com" >/dev/null 2>&1; then echo "exists  $$a"; else
+            gcloud iam service-accounts create "$$a" --display-name="VAP $$a ($$E exercise)" --description="VAP managed staging exercise ${_RUN_ID}; delete after the exercise" >/dev/null
+            echo "created $$a"; fi
+        done | tee -a /workspace/reports/provision.log
+
+  - id: sql-instance
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        I="vap-$$E"
+        if gcloud sql instances describe "$$I" >/dev/null 2>&1; then echo "exists  sql instance $$I" | tee -a /workspace/reports/provision.log; else
+          gcloud sql instances create "$$I" --database-version=POSTGRES_17 --edition=enterprise --tier=db-f1-micro --region="$$R" \
+            --storage-type=SSD --storage-size=10 --no-storage-auto-increase \
+            --backup-start-time=03:00 --retained-backups-count=1 --enable-point-in-time-recovery --retained-transaction-log-days=1 \
+            --no-deletion-protection --no-final-backup >/dev/null
+          echo "created sql instance $$I" | tee -a /workspace/reports/provision.log
+        fi
+        # `sql instances create --labels` is not in the GA track of this gcloud; set them through
+        # the Admin API (a label change does not restart the instance).
+        L=$$(python3 -c "import json,os;print(json.dumps({'settings':{'userLabels':dict(kv.split('=',1) for kv in os.environ['LABELS'].split(','))}}))")
+        OPN=$$(curl -sf -X PATCH -H "authorization: Bearer $$(gcloud auth print-access-token)" -H 'content-type: application/json' \
+          "https://sqladmin.googleapis.com/v1/projects/$$P/instances/$$I" -d "$$L" | python3 -c "import json,sys;print(json.load(sys.stdin)['name'])")
+        gcloud sql operations wait "$$OPN" --timeout=600 >/dev/null
+        gcloud sql instances describe "$$I" --format='json(databaseVersion,state,settings.tier,settings.edition,settings.dataDiskSizeGb,settings.dataDiskType,settings.storageAutoResize,settings.backupConfiguration,settings.availabilityType,settings.deletionProtectionEnabled,settings.userLabels)' \
+          | tee /workspace/reports/sql-instance.json
+
+  - id: sql-passwords
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        umask 077; mkdir -p /workspace/.sql
+        # Generated here, used only inside this build and removed by the last step; never printed.
+        for u in postgres vap_migrator vap_runtime vap_fixture; do [ -s /workspace/.sql/$$u ] || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n' > /workspace/.sql/$$u; done
+        gcloud sql users set-password postgres --instance="vap-$$E" --password="$$(cat /workspace/.sql/postgres)" >/dev/null
+        printf 'vap-sqlproxy:5432:*:postgres:%s\n' "$$(cat /workspace/.sql/postgres)" > /workspace/.sql/pgpass
+        echo "admin password set for this build only"
+
+  - id: sql-roles
+    name: ${_DOCKER}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        # The SQL runs from a file inside the postgres client image; psql reads the passwords from
+        # the mounted files into variables, so they never appear in the log or on a command line.
+        cat > /workspace/.sql/roles.sh <<'EOF'
+        set -eo pipefail
+        P="psql -h vap-sqlproxy -U postgres -v ON_ERROR_STOP=1"
+        for i in $$(seq 1 30); do $$P -d postgres -c 'select 1' >/dev/null 2>&1 && break; sleep 2; done
+        $$P -d postgres <<'SQL'
+        \set pm `cat /sql/vap_migrator`
+        \set pr `cat /sql/vap_runtime`
+        \set pf `cat /sql/vap_fixture`
+        SET createrole_self_grant = 'set, inherit';
+        SELECT format('CREATE ROLE %I LOGIN', r) FROM unnest(ARRAY['vap_migrator','vap_runtime','vap_fixture']) r
+          WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) \gexec
+        ALTER ROLE vap_migrator WITH LOGIN NOCREATEDB NOCREATEROLE PASSWORD :'pm';
+        ALTER ROLE vap_runtime WITH LOGIN NOCREATEDB NOCREATEROLE PASSWORD :'pr';
+        ALTER ROLE vap_fixture WITH LOGIN NOCREATEDB NOCREATEROLE PASSWORD :'pf';
+        -- The admin creates the databases owned by these roles and sets their default
+        -- privileges, which needs SET membership (it holds ADMIN on roles it created).
+        GRANT vap_migrator, vap_fixture TO postgres WITH INHERIT TRUE, SET TRUE;
+        SELECT 'CREATE DATABASE vap OWNER vap_migrator' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'vap') \gexec
+        SELECT 'CREATE DATABASE fixture OWNER vap_fixture' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'fixture') \gexec
+        REVOKE ALL ON DATABASE vap FROM PUBLIC;
+        GRANT CONNECT ON DATABASE vap TO vap_migrator, vap_runtime;
+        REVOKE ALL ON DATABASE fixture FROM PUBLIC;
+        GRANT CONNECT ON DATABASE fixture TO vap_fixture;
+        SQL
+        $$P -d vap <<'SQL'
+        ALTER DEFAULT PRIVILEGES FOR ROLE vap_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO vap_runtime;
+        ALTER DEFAULT PRIVILEGES FOR ROLE vap_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO vap_runtime;
+        SQL
+        # Role attributes and memberships (no secrets).
+        $$P -d postgres -A -F '|' <<'SQL'
+        SELECT r.rolname, r.rolsuper, r.rolcreatedb, r.rolcreaterole, coalesce(string_agg(m.rolname, ','), '') AS member_of
+        FROM pg_roles r LEFT JOIN pg_auth_members a ON a.member = r.oid LEFT JOIN pg_roles m ON m.oid = a.roleid
+        WHERE r.rolname IN ('vap_migrator', 'vap_runtime', 'vap_fixture') GROUP BY 1, 2, 3, 4 ORDER BY 1;
+        SQL
+        $$P -d postgres -A -F '|' -c "SELECT datname, pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname IN ('vap', 'fixture') ORDER BY 1"
+        EOF
+        docker run -d --network=cloudbuild --name=vap-sqlproxy ${_SQL_PROXY} --address=0.0.0.0 --port=5432 "$$P:$$R:vap-$$E" >/dev/null
+        trap 'docker rm -f vap-sqlproxy >/dev/null 2>&1 || true' EXIT
+        docker run --rm --network=cloudbuild -v /workspace/.sql:/sql:ro -e PGPASSFILE=/sql/pgpass --entrypoint bash ${_POSTGRES} /sql/roles.sh           | tee /workspace/reports/sql-roles.txt
+        grep -q cloudsqlsuperuser /workspace/reports/sql-roles.txt && { echo "an application role is a member of cloudsqlsuperuser"; exit 1; }
+        grep -q '^vap|vap_migrator$$' /workspace/reports/sql-roles.txt && grep -q '^fixture|vap_fixture$$' /workspace/reports/sql-roles.txt
+        echo "application roles created without cloudsqlsuperuser membership" | tee -a /workspace/reports/provision.log
+
+  - id: secrets-and-iam
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        exec > >(tee -a /workspace/reports/provision.log) 2>&1
+        sa() { echo "$$1@$$P.iam.gserviceaccount.com"; }
+        CONN="$$P:$$R:vap-$$E"
+        put() { # secret-name value-file
+          gcloud secrets describe "$$1" >/dev/null 2>&1 || gcloud secrets create "$$1" --replication-policy=automatic --labels="$$LABELS" >/dev/null
+          gcloud secrets versions add "$$1" --data-file="$$2" >/dev/null
+          echo "secret $$1: new version"
+        }
+        umask 077
+        url() { printf 'postgresql://%s:%s@localhost/%s?host=/cloudsql/%s' "$$1" "$$(cat /workspace/.sql/$$1)" "$$2" "$$CONN" > /workspace/.sql/url; }
+        url vap_migrator vap;  put "vap-$$E-migration-database-url" /workspace/.sql/url
+        url vap_runtime vap;   put "vap-$$E-database-url" /workspace/.sql/url
+        url vap_fixture fixture; put "vap-$$E-fixture-database-url" /workspace/.sql/url
+        gcloud secrets describe "vap-$$E-digest-key" >/dev/null 2>&1 || { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /workspace/.sql/dk; put "vap-$$E-digest-key" /workspace/.sql/dk; }
+        rm -f /workspace/.sql/url /workspace/.sql/dk
+        acc() { gcloud secrets add-iam-policy-binding "$$1" --member="serviceAccount:$$(sa $$2)" --role=roles/secretmanager.secretAccessor >/dev/null; echo "secretAccessor $$2 on $$1"; }
+        for a in vap-api vap-worker; do acc "vap-$$E-database-url" $$a; acc "vap-$$E-digest-key" $$a; done
+        acc "vap-$$E-migration-database-url" vap-migrator
+        acc "vap-$$E-fixture-database-url" vap-fixture
+        # Cloud SQL client, conditioned on this one instance (Cloud SQL has no instance-level IAM).
+        COND="expression=resource.name == 'projects/$$P/instances/vap-$$E' && resource.type == 'sqladmin.googleapis.com/Instance',title=vap-$$E-only,description=VAP $$E exercise"
+        for a in vap-api vap-worker vap-migrator vap-fixture; do
+          gcloud projects add-iam-policy-binding "$$P" --member="serviceAccount:$$(sa $$a)" --role=roles/cloudsql.client --condition="$$COND" >/dev/null
+          echo "cloudsql.client $$a, condition: instance vap-$$E only"
+        done
+        # The build identity may mint Google-signed ID tokens for vap-smoke only
+        # (iam.serviceAccounts.getOpenIdToken; not Token Creator).
+        BUILDER=$$(gcloud config get-value account 2>/dev/null)
+        gcloud iam service-accounts add-iam-policy-binding "$$(sa vap-smoke)" --member="serviceAccount:$$BUILDER" --role=roles/iam.serviceAccountOpenIdTokenCreator >/dev/null
+        echo "serviceAccountOpenIdTokenCreator for the build identity on vap-smoke only"
+        # Discard the admin password: rotate it to a value nobody keeps.
+        gcloud sql users set-password postgres --instance="vap-$$E" --password="$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')" >/dev/null
+        rm -rf /workspace/.sql
+        echo "postgres password rotated to a discarded value; build-local password files removed"
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/managed/${_ENVIRONMENT}/${_RUN_ID}/provision/
+    paths: ["reports/*"]

@@ -34,12 +34,41 @@ interface Faults {
   partial_batch: { count: number; fail_after: number };
 }
 
+/**
+ * Faults keyed by the owner an issue update sets, configured at startup. Unlike the control
+ * listener's counters they live in the configuration, so every instance of a horizontally
+ * scaled fixture (Cloud Run) applies them identically and a test can aim a fault at one
+ * operation by its owner argument. Test harness only: requires test controls.
+ */
+export type OwnerFaults = Record<string, { delay_visibility_ms?: number; lost_reply?: boolean }>;
+
+/** Parses FIXTURE_OWNER_FAULTS. Throws on malformed input or when test controls are off. */
+export function parseOwnerFaults(raw: string | undefined, testControls: boolean): OwnerFaults | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  if (!testControls) throw new Error("FIXTURE_OWNER_FAULTS requires FIXTURE_TEST_CONTROLS=1");
+  const parsed: unknown = JSON.parse(raw);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("FIXTURE_OWNER_FAULTS must be a JSON object keyed by owner");
+  const out: OwnerFaults = {};
+  for (const [owner, f] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!OWNERS.includes(owner)) throw new Error(`FIXTURE_OWNER_FAULTS: unknown owner ${owner}`);
+    if (typeof f !== "object" || f === null) throw new Error(`FIXTURE_OWNER_FAULTS: ${owner} must map to an object`);
+    const { delay_visibility_ms: d, lost_reply: l, ...rest } = f as Record<string, unknown>;
+    if (Object.keys(rest).length > 0) throw new Error(`FIXTURE_OWNER_FAULTS: unknown fields for ${owner}`);
+    if (d !== undefined && (!Number.isInteger(d) || (d as number) < 0 || (d as number) > 600_000)) throw new Error(`FIXTURE_OWNER_FAULTS: delay_visibility_ms for ${owner} must be 0-600000`);
+    if (l !== undefined && typeof l !== "boolean") throw new Error(`FIXTURE_OWNER_FAULTS: lost_reply for ${owner} must be a boolean`);
+    out[owner] = { ...(d !== undefined ? { delay_visibility_ms: d as number } : {}), ...(l !== undefined ? { lost_reply: l } : {}) };
+  }
+  return out;
+}
+
 export interface FixtureOptions {
   databaseUrl: string;
   host?: string;
   port: number;
   /** Enables the fault-control listener (test harness only). */
   testControls?: boolean;
+  /** Owner-keyed faults for issue updates (test harness only; see parseOwnerFaults). */
+  ownerFaults?: OwnerFaults;
   /** Repositories ("owner/repo") served by the GitHub-compatible /gh API. */
   githubRepos?: string[];
   controlHost?: string;
@@ -53,7 +82,7 @@ export interface FixtureHandle {
   close(): Promise<void>;
 }
 
-type Result = { status: number; body: unknown; headers?: Record<string, string>; lostReplyEligible?: boolean };
+type Result = { status: number; body: unknown; headers?: Record<string, string>; lostReplyEligible?: boolean; forceLostReply?: boolean };
 
 const MAX_BODY = 256 * 1024;
 
@@ -275,11 +304,14 @@ export async function startFixture(opts: FixtureOptions): Promise<FixtureHandle>
           const cur = await lockIssue(c, id);
           if (!cur) return { status: 404, body: { error: "not_found" } };
           if (ifMatch !== null && String(cur.version) !== ifMatch) return { status: 412, body: { error: "version_mismatch", current_version: cur.version } };
-          const next = await updateIssue(c, cur, allowed, key, takeDelay(), "api");
+          const ownerFault = typeof allowed.owner === "string" ? opts.ownerFaults?.[allowed.owner] : undefined;
+          const delayMs = ownerFault?.delay_visibility_ms !== undefined ? ownerFault.delay_visibility_ms : takeDelay();
+          const next = await updateIssue(c, cur, allowed, key, delayMs, "api");
           return { status: 200, body: next, headers: { etag: `"${next.version}"` } };
         }),
       );
-      return { ...res, lostReplyEligible: !res.replay };
+      const replyFault = typeof body.owner === "string" ? opts.ownerFaults?.[body.owner] : undefined;
+      return { ...res, lostReplyEligible: !res.replay, forceLostReply: replyFault?.lost_reply === true };
     }
 
     if (method === "POST" && p === "/issues/batch") {
@@ -429,9 +461,9 @@ export async function startFixture(opts: FixtureOptions): Promise<FixtureHandle>
     handle(req, url)
       .then((r) => {
         const isWrite = req.method !== "GET" && r.status < 300 && r.lostReplyEligible;
-        if (isWrite && faults.lost_reply > 0) {
+        if (isWrite && (r.forceLostReply || faults.lost_reply > 0)) {
           // The write committed; drop the reply so the caller cannot know.
-          faults.lost_reply--;
+          if (!r.forceLostReply) faults.lost_reply--;
           req.socket.destroy();
           return;
         }

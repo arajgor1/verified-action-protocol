@@ -1,11 +1,27 @@
-# Staging deployment rehearsal (spec section 15). Deploys an immutable image digest, runs
-# migrations with the migration identity, deploys the API (IAM-protected), worker job (no
-# infrastructure retries), sweeper job and scheduler, a synthetic fixture, then runs
-# authenticated smoke checks, an API restart and a worker kill mid-operation, collects
-# sanitized evidence, and optionally tears staging down.
+# Managed staging deployment (spec section 15) against Cloud Run, Cloud Run jobs, Cloud Scheduler
+# and Cloud SQL, with Google-signed authentication. Deploys an immutable image digest, runs
+# migrations with the migration identity, checks database and IAM access controls, deploys the
+# API (IAM-protected, OIDC), worker and sweeper jobs (no infrastructure retries), the scheduler
+# and a synthetic fixture, then:
+#   - smoke: an authenticated operation ends verified; unauthenticated and wrong-audience
+#     requests are rejected;
+#   - in-flight interruption: an operation whose write is committed and whose verification is
+#     still polling (owner-keyed fixture fault: the new version stays invisible for 180 s) is
+#     captured as pending while the job execution verifying it is RUNNING; that execution is
+#     cancelled and the API restarted; verification must start again after the interruption and
+#     finish verified with one submission;
+#   - reconciliation: an operation whose reply is lost must be resolved by reconciliation with
+#     one submission;
+#   - journal durability: every operation and event survives the API restart and a Cloud SQL
+#     instance restart;
+#   - teardown of the Cloud Run services, jobs and scheduler, verified by label.
+# Steps after validation run with allowFailure and scripts/step-guard.sh, so a failure skips the
+# remaining checks but never the teardown; the final verdict step fails the build.
 #
-# Prerequisites are created once by infra/gcp/bootstrap.sh (service accounts, Cloud SQL,
-# secrets, Artifact Registry, evidence bucket). Nothing owner-specific is stored here.
+# Prerequisites: infra/gcp/cloudbuild.managed-provision.yaml (service accounts, Cloud SQL, roles,
+# secrets, scoped IAM). Cloud SQL and the secrets are removed by cloudbuild.managed-teardown.yaml.
+#
+#   bash scripts/vap-cloud.sh deploy --image <registry>/vap/vap@sha256:<digest> [--keep]
 substitutions:
   _RUN_ID: manual
   _IMAGE: set-by-caller@sha256:0000000000000000000000000000000000000000000000000000000000000000
@@ -14,15 +30,24 @@ substitutions:
   _TEARDOWN: "true"
   _GCLOUD: gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf
   _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+  _POSTGRES: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+  _SQL_PROXY: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.26.2@sha256:e8c76356fb586300c63f0d29c8c75cfeeba33c29736f9d4afa2df2d78cd0fa19
   _SQL_INSTANCE: ${PROJECT_ID}:${LOCATION}:vap-${_ENVIRONMENT}
-  _LABELS: vap-env=${_ENVIRONMENT},vap-run=${_RUN_ID},vap-owner=vap-deployer
+  _LABELS: vap-env=${_ENVIRONMENT},vap-run=${_RUN_ID},vap-owner=vap-deploy-build
+  # Owner-keyed fixture faults: carol's updates stay invisible for 180 s; dave's replies are lost.
+  _OWNER_FAULTS: '{"carol":{"delay_visibility_ms":180000},"dave":{"lost_reply":true}}'
 
 options:
   logging: CLOUD_LOGGING_ONLY
   dynamicSubstitutions: true
   env:
     - VAP_CLOUD_EXECUTION=1
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
     - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - E=${_ENVIRONMENT}
+    - R=${LOCATION}
+    - P=${PROJECT_ID}
 
 timeout: 3600s
 tags: ["vap", "vap-deploy", "run-${_RUN_ID}"]
@@ -35,94 +60,212 @@ steps:
     args:
       - -c
       - |
+        set -eo pipefail
         # The image arrives through env, never interpolated into the script text.
         RE='^${LOCATION}-docker[.]pkg[.]dev/${PROJECT_ID}/vap/vap@sha256:[0-9a-f]{64}$$'
         [[ "$$IMAGE" =~ $$RE ]] || { echo "image must be this project's Artifact Registry vap image, by digest"; exit 1; }
+        # Prerequisites from managed-provision; nothing is created when they are missing.
+        [ "$$(gcloud sql instances describe vap-$$E --format='value(state)')" = RUNNABLE ] || { echo "Cloud SQL vap-$$E is not RUNNABLE"; exit 1; }
+        for s in database-url migration-database-url fixture-database-url digest-key; do gcloud secrets describe "vap-$$E-$$s" >/dev/null; done
+        for a in vap-api vap-worker vap-migrator vap-fixture vap-scheduler vap-smoke; do gcloud iam service-accounts describe "$$a@$$P.iam.gserviceaccount.com" >/dev/null; done
+        mkdir -p /workspace/reports
+        echo "image $${IMAGE##*@}; prerequisites present" | tee /workspace/reports/deploy.log
 
   - id: migrate
     name: ${_GCLOUD}
     entrypoint: bash
+    allowFailure: true
     args:
       - -c
       - |
-        set -e
-        gcloud run jobs deploy vap-migrate-${_ENVIRONMENT} --region=${LOCATION} --image='${_IMAGE}' \
-          --service-account=vap-migrator@${PROJECT_ID}.iam.gserviceaccount.com \
+        source scripts/step-guard.sh migrate
+        gcloud run jobs deploy vap-migrate-$$E --region=$$R --image='${_IMAGE}' \
+          --service-account=vap-migrator@$$P.iam.gserviceaccount.com \
           --set-cloudsql-instances=${_SQL_INSTANCE} \
-          --set-secrets=VAP_MIGRATION_DATABASE_URL=vap-${_ENVIRONMENT}-migration-database-url:latest \
-          --args=packages/store-postgres/dist/migrate-cli.js --max-retries=0 --task-timeout=600s --labels=${_LABELS}
-        gcloud run jobs execute vap-migrate-${_ENVIRONMENT} --region=${LOCATION} --wait
+          --set-secrets=VAP_MIGRATION_DATABASE_URL=vap-$$E-migration-database-url:latest \
+          --args=packages/store-postgres/dist/migrate-cli.js --tasks=1 --parallelism=1 --max-retries=0 --task-timeout=600s --labels=${_LABELS}
+        gcloud run jobs execute vap-migrate-$$E --region=$$R --wait
+        echo "migration job vap-migrate-$$E succeeded as vap-migrator" | tee -a reports/deploy.log
+        # Runtime credentials for the access checks below; build-local, never printed, removed by
+        # the db-access step and by teardown.
+        umask 077; mkdir -p /workspace/.db
+        gcloud secrets versions access latest --secret=vap-$$E-database-url > /workspace/.db/runtime-url
+
+  - id: db-access
+    name: ${_DOCKER}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh db-access
+        umask 077
+        PW=$$(sed -E 's#^postgresql://vap_runtime:([^@]+)@.*#\1#' /workspace/.db/runtime-url)
+        printf 'vap-sqlproxy:5432:*:vap_runtime:%s\n' "$$PW" > /workspace/.db/pgpass; unset PW
+        cat > /workspace/.db/checks.sh <<'EOF'
+        set -eo pipefail
+        Q="psql -h vap-sqlproxy -U vap_runtime -v ON_ERROR_STOP=1 -A -t"
+        for i in $$(seq 1 30); do $$Q -d vap -c 'select 1' >/dev/null 2>&1 && break; sleep 2; done
+        echo "migrations recorded: $$($$Q -d vap -c 'SELECT count(*) FROM vap_schema_migrations') (latest $$($$Q -d vap -c 'SELECT max(version) FROM vap_schema_migrations'))"
+        echo "runtime role reads the journal: operations table has $$($$Q -d vap -c 'SELECT count(*) FROM operations') rows"
+        if $$Q -d vap -c 'CREATE TABLE ddl_probe (x int)' 2>/tmp/e; then echo "FAIL: the runtime role could run DDL"; exit 1; fi
+        echo "runtime role refused DDL: $$(head -1 /tmp/e)"
+        if $$Q -d vap -c 'DROP TABLE vap_schema_migrations' 2>/tmp/e; then echo "FAIL: the runtime role could drop a table"; exit 1; fi
+        echo "runtime role refused DROP TABLE: $$(head -1 /tmp/e)"
+        if $$Q -d fixture -c 'select 1' 2>/tmp/e; then echo "FAIL: the runtime role could connect to the fixture database"; exit 1; fi
+        echo "runtime role refused the fixture database: $$(head -1 /tmp/e)"
+        EOF
+        docker run -d --network=cloudbuild --name=vap-sqlproxy ${_SQL_PROXY} --address=0.0.0.0 --port=5432 "${_SQL_INSTANCE}" >/dev/null
+        rc=0
+        docker run --rm --network=cloudbuild -v /workspace/.db:/db:ro -e PGPASSFILE=/db/pgpass --entrypoint bash ${_POSTGRES} /db/checks.sh | tee reports/db-access.log || rc=$$?
+        docker rm -f vap-sqlproxy >/dev/null 2>&1 || true
+        rm -rf /workspace/.db
+        exit $$rc
 
   - id: fixture
     name: ${_GCLOUD}
     entrypoint: bash
+    allowFailure: true
     args:
       - -c
       - |
-        set -e
-        # Synthetic destination for the rehearsal only. Fault controls stay disabled.
-        gcloud run deploy vap-fixture-${_ENVIRONMENT} --region=${LOCATION} --image='${_IMAGE}' \
-          --service-account=vap-fixture@${PROJECT_ID}.iam.gserviceaccount.com \
+        source scripts/step-guard.sh fixture
+        # Synthetic destination for this exercise only, public for its duration. The owner-keyed
+        # faults touch only updates that set owner carol or dave; the control listener stays on
+        # loopback inside the container.
+        gcloud run deploy vap-fixture-$$E --region=$$R --image='${_IMAGE}' \
+          --service-account=vap-fixture@$$P.iam.gserviceaccount.com \
           --set-cloudsql-instances=${_SQL_INSTANCE} \
-          --set-secrets=FIXTURE_DATABASE_URL=vap-${_ENVIRONMENT}-fixture-database-url:latest \
-          --args=fixtures/issue-tracker/dist/main.js --allow-unauthenticated --max-instances=2 --labels=${_LABELS}
-        gcloud run services describe vap-fixture-${_ENVIRONMENT} --region=${LOCATION} --format='value(status.url)' > /workspace/fixture-url
+          --set-secrets=FIXTURE_DATABASE_URL=vap-$$E-fixture-database-url:latest \
+          '--set-env-vars=^@^FIXTURE_TEST_CONTROLS=1@FIXTURE_OWNER_FAULTS=${_OWNER_FAULTS}' \
+          --args=fixtures/issue-tracker/dist/main.js --allow-unauthenticated --min-instances=0 --max-instances=2 --timeout=60s --labels=${_LABELS}
+        gcloud run services describe vap-fixture-$$E --region=$$R --format='value(status.url)' > /workspace/fixture-url
 
   - id: worker-and-sweeper
     name: ${_GCLOUD}
     entrypoint: bash
+    allowFailure: true
     args:
       - -c
       - |
-        set -e
+        source scripts/step-guard.sh worker-and-sweeper
         FIX=$$(cat /workspace/fixture-url)
-        COMMON="--region=${LOCATION} --image=${_IMAGE} --service-account=vap-worker@${PROJECT_ID}.iam.gserviceaccount.com --set-cloudsql-instances=${_SQL_INSTANCE} --set-secrets=VAP_DATABASE_URL=vap-${_ENVIRONMENT}-database-url:latest,VAP_DIGEST_KEY=vap-${_ENVIRONMENT}-digest-key:latest --set-env-vars=VAP_DEPLOYMENT_ID=${_ENVIRONMENT},VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN=$$FIX,VAP_EVIDENCE_BUCKET=${_EVIDENCE_BUCKET} --max-retries=0 --task-timeout=900s --labels=${_LABELS}"
-        gcloud run jobs deploy vap-worker-${_ENVIRONMENT} $$COMMON --args=apps/worker/dist/main.js,sweep
-        gcloud run jobs deploy vap-sweeper-${_ENVIRONMENT} $$COMMON --args=apps/worker/dist/main.js,sweep
-        gcloud run jobs add-iam-policy-binding vap-worker-${_ENVIRONMENT} --region=${LOCATION}           --member=serviceAccount:vap-api@${PROJECT_ID}.iam.gserviceaccount.com --role=roles/run.jobsExecutorWithOverrides
-        gcloud scheduler jobs describe vap-sweeper-${_ENVIRONMENT} --location=${LOCATION} >/dev/null 2>&1 || \
-        gcloud scheduler jobs create http vap-sweeper-${_ENVIRONMENT} --location=${LOCATION} --schedule='* * * * *' \
-          --uri="https://run.googleapis.com/v2/projects/${PROJECT_ID}/locations/${LOCATION}/jobs/vap-sweeper-${_ENVIRONMENT}:run" \
-          --http-method=POST --oauth-service-account-email=vap-scheduler@${PROJECT_ID}.iam.gserviceaccount.com
+        COMMON="--region=$$R --image=${_IMAGE} --service-account=vap-worker@$$P.iam.gserviceaccount.com --set-cloudsql-instances=${_SQL_INSTANCE} --set-secrets=VAP_DATABASE_URL=vap-$$E-database-url:latest,VAP_DIGEST_KEY=vap-$$E-digest-key:latest --set-env-vars=VAP_DEPLOYMENT_ID=$$E,VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN=$$FIX --tasks=1 --parallelism=1 --max-retries=0 --labels=${_LABELS}"
+        gcloud run jobs deploy vap-worker-$$E $$COMMON --task-timeout=900s --args=apps/worker/dist/main.js,sweep
+        gcloud run jobs deploy vap-sweeper-$$E $$COMMON --task-timeout=600s --args=apps/worker/dist/main.js,sweep
+        # vap-api may start the worker job with per-operation arguments (that job only).
+        gcloud run jobs add-iam-policy-binding vap-worker-$$E --region=$$R --member=serviceAccount:vap-api@$$P.iam.gserviceaccount.com --role=roles/run.jobsExecutorWithOverrides >/dev/null
+        # vap-scheduler may run the sweeper job (that job only).
+        gcloud run jobs add-iam-policy-binding vap-sweeper-$$E --region=$$R --member=serviceAccount:vap-scheduler@$$P.iam.gserviceaccount.com --role=roles/run.invoker >/dev/null
+        gcloud scheduler jobs describe vap-sweeper-$$E --location=$$R >/dev/null 2>&1 || \
+        gcloud scheduler jobs create http vap-sweeper-$$E --location=$$R --schedule='* * * * *' --attempt-deadline=180s \
+          --uri="https://run.googleapis.com/v2/projects/$$P/locations/$$R/jobs/vap-sweeper-$$E:run" \
+          --http-method=POST --oauth-service-account-email=vap-scheduler@$$P.iam.gserviceaccount.com
+        date -u +%FT%TZ > /workspace/scheduler-created-at
 
   - id: api
     name: ${_GCLOUD}
     entrypoint: bash
+    allowFailure: true
     args:
       - -c
       - |
-        set -e
+        source scripts/step-guard.sh api
         FIX=$$(cat /workspace/fixture-url)
         # The smoke identity is a dedicated low-privilege service account: it is the bootstrap
         # operator inside VAP and the only principal granted run.invoker on this service.
-        SMOKE=vap-smoke@${PROJECT_ID}.iam.gserviceaccount.com
-        ENV="VAP_DEPLOYMENT_ID=${_ENVIRONMENT},VAP_DISPATCH_MODE=cloud-run-job,VAP_WORKER_JOB=projects/${PROJECT_ID}/locations/${LOCATION}/jobs/vap-worker-${_ENVIRONMENT},VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN=$$FIX,VAP_EVIDENCE_BUCKET=${_EVIDENCE_BUCKET},VAP_BOOTSTRAP_OPERATORS=$$SMOKE,VAP_IMAGE_DIGEST=${_IMAGE}"
-        gcloud run deploy vap-api-${_ENVIRONMENT} --region=${LOCATION} --image='${_IMAGE}' --no-allow-unauthenticated \
-          --service-account=vap-api@${PROJECT_ID}.iam.gserviceaccount.com --set-cloudsql-instances=${_SQL_INSTANCE} \
-          --set-secrets=VAP_DATABASE_URL=vap-${_ENVIRONMENT}-database-url:latest,VAP_DIGEST_KEY=vap-${_ENVIRONMENT}-digest-key:latest \
-          --set-env-vars="$$ENV,VAP_OIDC_AUDIENCE=pending" --max-instances=3 --labels=${_LABELS}
-        URL=$$(gcloud run services describe vap-api-${_ENVIRONMENT} --region=${LOCATION} --format='value(status.url)')
-        gcloud run services update vap-api-${_ENVIRONMENT} --region=${LOCATION} --update-env-vars=VAP_OIDC_AUDIENCE=$$URL
+        SMOKE=vap-smoke@$$P.iam.gserviceaccount.com
+        ENV="VAP_DEPLOYMENT_ID=$$E,VAP_DISPATCH_MODE=cloud-run-job,VAP_WORKER_JOB=projects/$$P/locations/$$R/jobs/vap-worker-$$E,VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN=$$FIX,VAP_BOOTSTRAP_OPERATORS=$$SMOKE,VAP_IMAGE_DIGEST=${_IMAGE}"
+        gcloud run deploy vap-api-$$E --region=$$R --image='${_IMAGE}' --no-allow-unauthenticated \
+          --service-account=vap-api@$$P.iam.gserviceaccount.com --set-cloudsql-instances=${_SQL_INSTANCE} \
+          --set-secrets=VAP_DATABASE_URL=vap-$$E-database-url:latest,VAP_DIGEST_KEY=vap-$$E-digest-key:latest \
+          --set-env-vars="$$ENV,VAP_OIDC_AUDIENCE=pending" --min-instances=0 --max-instances=3 --timeout=60s --labels=${_LABELS}
+        URL=$$(gcloud run services describe vap-api-$$E --region=$$R --format='value(status.url)')
+        gcloud run services update vap-api-$$E --region=$$R --update-env-vars=VAP_OIDC_AUDIENCE=$$URL
         echo "$$URL" > /workspace/api-url
-        gcloud run services add-iam-policy-binding vap-api-${_ENVIRONMENT} --region=${LOCATION}           --member=serviceAccount:$$SMOKE --role=roles/run.invoker >/dev/null
+        gcloud run services add-iam-policy-binding vap-api-$$E --region=$$R --member=serviceAccount:$$SMOKE --role=roles/run.invoker >/dev/null
+
+  - id: access-policy
+    name: ${_GCLOUD}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh access-policy
+        pol() { echo "== $$1"; shift; "$$@" --format='value(bindings.role,bindings.members)' --flatten=bindings; }
+        {
+          pol "run service vap-api-$$E" gcloud run services get-iam-policy vap-api-$$E --region=$$R
+          pol "run service vap-fixture-$$E (synthetic, public for the exercise)" gcloud run services get-iam-policy vap-fixture-$$E --region=$$R
+          pol "run job vap-worker-$$E" gcloud run jobs get-iam-policy vap-worker-$$E --region=$$R
+          pol "run job vap-sweeper-$$E" gcloud run jobs get-iam-policy vap-sweeper-$$E --region=$$R
+          for s in database-url migration-database-url fixture-database-url digest-key; do pol "secret vap-$$E-$$s" gcloud secrets get-iam-policy vap-$$E-$$s; done
+          pol "account vap-smoke" gcloud iam service-accounts get-iam-policy vap-smoke@$$P.iam.gserviceaccount.com
+          echo "== project bindings of the exercise accounts"
+          gcloud projects get-iam-policy $$P --flatten=bindings --format='value(bindings.role,bindings.members,bindings.condition.expression)' | grep -E 'vap-(api|worker|migrator|fixture|scheduler|smoke)@' || true
+        } | tee reports/access-policy.txt
+        python3 - reports/access-policy.txt <<'PY'
+        import re, sys
+        text = open(sys.argv[1]).read()
+        sections = {m.group(1): m.group(2) for m in re.finditer(r"^== ([^\n]+)\n(.*?)(?=^== |\Z)", text, re.S | re.M)}
+        def sec(prefix): return next(v for k, v in sections.items() if k.startswith(prefix))
+        api = sec("run service vap-api")
+        assert "allUsers" not in api and "allAuthenticatedUsers" not in api, "the API is publicly invocable"
+        invokers = [l for l in api.splitlines() if l.startswith("roles/run.invoker")]
+        assert len(invokers) == 1 and re.fullmatch(r"roles/run.invoker\s+serviceAccount:vap-smoke@[^\s;]+", invokers[0]), f"unexpected API invokers: {invokers}"
+        proj = sec("project bindings")
+        for line in filter(None, proj.splitlines()):
+            assert line.startswith("roles/cloudsql.client") and "resource.name ==" in line, f"unexpected project binding: {line}"
+        print("access policy assertions passed: API invocable only by vap-smoke; project bindings are instance-conditioned cloudsql.client only")
+        PY
+
+  - id: scheduler-trigger
+    name: ${_GCLOUD}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh scheduler-trigger
+        # Cloud Scheduler itself (OAuth as vap-scheduler) must start a sweeper execution.
+        gcloud scheduler jobs run vap-sweeper-$$E --location=$$R
+        for i in $$(seq 1 36); do
+          gcloud run jobs executions list --job=vap-sweeper-$$E --region=$$R --format=json > /tmp/ex.json
+          python3 - /tmp/ex.json "$$P" > /tmp/found <<'PY' && break
+        import json, sys
+        ex = json.load(open(sys.argv[1]))
+        # Only Cloud Scheduler starts sweeper executions before this point in the pipeline. The
+        # creator annotation, when Cloud Run records it, must name vap-scheduler.
+        creator = lambda e: e["metadata"].get("annotations", {}).get("run.googleapis.com/creator", "")
+        done = [e for e in ex if e.get("status", {}).get("succeededCount", 0) >= 1]
+        if any(creator(e) and not creator(e).startswith("vap-scheduler@") for e in done): sys.exit("a sweeper execution was started by another principal")
+        if not done: sys.exit(1)
+        e = done[0]
+        print(json.dumps({"execution": e["metadata"]["name"], "creator": (creator(e).split("@")[0] + "@<project>") if creator(e) else "not recorded by Cloud Run", "succeeded": e["status"].get("succeededCount"), "completed": e["status"].get("completionTime"), "succeeded_executions": len(done)}))
+        PY
+          sleep 5
+        done
+        [ -s /tmp/found ] || { echo "no sweeper execution started by vap-scheduler succeeded within 3 minutes"; gcloud scheduler jobs describe vap-sweeper-$$E --location=$$R --format='value(state,status)'; exit 1; }
+        tee reports/scheduler.json < /tmp/found
 
   - id: install-smoke
     name: ${_NODE}
     entrypoint: bash
-    args: ["-c", "npm ci --ignore-scripts && npm run build"]
+    allowFailure: true
+    args: ["-c", "source scripts/step-guard.sh install-smoke && npm ci --ignore-scripts && npm run build"]
 
   - id: identity
     name: ${_NODE}
     entrypoint: bash
-    # Google-signed ID tokens for vap-smoke, minted by the build identity (vap-deployer) through
-    # IAM Credentials. Needs only iam.serviceAccounts.getOpenIdToken on vap-smoke
-    # (roles/iam.serviceAccountOpenIdTokenCreator bound on that one account by bootstrap.sh).
+    allowFailure: true
+    # Google-signed ID tokens for vap-smoke, minted by the build identity through IAM Credentials.
+    # Needs only iam.serviceAccounts.getOpenIdToken on vap-smoke
+    # (roles/iam.serviceAccountOpenIdTokenCreator bound on that one account by managed-provision).
     args:
       - -c
       - |
-        set -eo pipefail
-        mkdir -p reports
-        S=vap-smoke@${PROJECT_ID}.iam.gserviceaccount.com
+        source scripts/step-guard.sh identity
+        S=vap-smoke@$$P.iam.gserviceaccount.com
         node scripts/metadata-identity.mjs "$$(cat api-url)" /workspace/.vap-token /workspace/smoke-subject "$$S"
         node scripts/metadata-identity.mjs "https://wrong-audience.invalid" /workspace/.vap-token-wrong-aud /workspace/.ignored "$$S"
         # Google-signed tokens with the wrong audience are refused before VAP sees them.
@@ -133,37 +276,156 @@ steps:
   - id: smoke
     name: ${_NODE}
     entrypoint: bash
-    args: ["-c", "mkdir -p reports && export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) VAP_SMOKE_SUBJECT=$$(cat smoke-subject) && node scripts/smoke.ts basic 2> reports/smoke-basic.log"]
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh smoke
+        export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) VAP_SMOKE_SUBJECT=$$(cat smoke-subject)
+        node scripts/smoke.ts basic > op-basic.txt 2> reports/smoke-basic.log
+        echo "basic operation verified: $$(cat op-basic.txt)" | tee -a reports/deploy.log
 
-  - id: restart-mid-operation
+  - id: start-disrupted-operations
     name: ${_NODE}
     entrypoint: bash
-    args: ["-c", "export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) VAP_SMOKE_SUBJECT=$$(cat smoke-subject) && node scripts/smoke.ts start > op-restart.txt"]
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh start-disrupted-operations
+        export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) VAP_SMOKE_SUBJECT=$$(cat smoke-subject)
+        # A: the write commits but stays invisible for 180 s; the check deadline (600 s) outlasts it.
+        VAP_SMOKE_OWNER=carol VAP_SMOKE_CHECK_DEADLINE=600 node scripts/smoke.ts start > op-verify.txt 2>> reports/smoke-start.log
+        # B: the write commits and the reply is lost, so only reconciliation can establish the outcome.
+        VAP_SMOKE_OWNER=dave VAP_SMOKE_CHECK_DEADLINE=120 node scripts/smoke.ts start > op-lost.txt 2>> reports/smoke-start.log
+        echo "started $$(cat op-verify.txt) (verification in flight) and $$(cat op-lost.txt) (lost reply)" | tee -a reports/deploy.log
 
-  - id: restart-api
+  - id: capture-in-flight
+    name: ${_NODE}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh capture-in-flight
+        export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url)
+        # Wait until operation A's write is complete and its verification is polling.
+        for i in $$(seq 1 60); do
+          node scripts/smoke.ts status $$(cat op-verify.txt) > /tmp/s.json
+          node -e "const s=JSON.parse(require('fs').readFileSync('/tmp/s.json','utf8'));process.exit(s.execution==='completed'&&s.verification==='pending'&&s.events.some(e=>e.type==='verification.started')?0:1)" && break
+          node -e "const s=JSON.parse(require('fs').readFileSync('/tmp/s.json','utf8'));if(['passed','failed','inconclusive'].includes(s.verification)||['failed','unknown','cancelled'].includes(s.execution)){console.log('operation left the in-flight window: '+JSON.stringify(s));process.exit(1)}" || exit 1
+          sleep 4
+        done
+        node -e "const s=JSON.parse(require('fs').readFileSync('/tmp/s.json','utf8'));process.exit(s.execution==='completed'&&s.verification==='pending'?0:1)" || { echo "verification never became in flight: $$(cat /tmp/s.json)"; exit 1; }
+        cp /tmp/s.json reports/in-flight-before-interruption.json
+        # Any worker or sweeper execution drains the shared outbox, so the process verifying this
+        # operation is the one named by the latest verification.started actor (worker ids carry
+        # the Cloud Run execution name), not necessarily the execution launched for it.
+        node -e "const s=JSON.parse(require('fs').readFileSync('/tmp/s.json','utf8'));const v=s.events.filter(e=>e.type==='verification.started').pop();const m=/^worker:wk-(.+)-[0-9]+-[0-9a-f]{8}$$/.exec(v.actor);if(!m){console.error('verifier is not a Cloud Run job execution: '+v.actor);process.exit(1)}console.log(m[1])" > /workspace/holder
+        echo "verification held by execution $$(cat /workspace/holder)" | tee -a reports/deploy.log
+        echo "in flight at $$(date -u +%FT%TZ): $$(cat /tmp/s.json)" | tee -a reports/deploy.log
+
+  - id: interrupt
     name: ${_GCLOUD}
-    args: ["run", "services", "update", "vap-api-${_ENVIRONMENT}", "--region=${LOCATION}", "--update-env-vars=VAP_RESTART_MARKER=${BUILD_ID}"]
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh interrupt
+        OP=$$(cat op-verify.txt)
+        EXEC=$$(cat /workspace/holder)
+        JOB=$${EXEC%-*}
+        case "$$JOB" in vap-worker-$$E|vap-sweeper-$$E) ;; *) echo "holder $$EXEC is not an execution of this deployment's jobs"; exit 1;; esac
+        gcloud run jobs executions describe "$$EXEC" --region=$$R --format=json > /tmp/x.json
+        RUNNING=$$(python3 -c "import json;print(json.load(open('/tmp/x.json')).get('status',{}).get('runningCount',0))")
+        [ "$$RUNNING" -ge 1 ] || { echo "execution $$EXEC is not running (runningCount $$RUNNING)"; exit 1; }
+        python3 -c "import json;e=json.load(open('/tmp/x.json'));c=(e.get('spec',{}).get('template',{}).get('spec',{}).get('containers') or [{}])[0];print(json.dumps({'execution':e['metadata']['name'],'args':c.get('args'),'status':e.get('status')}))" > reports/in-flight-execution-before-cancel.json
+        echo "execution $$EXEC (job $$JOB), which is verifying $$OP, is RUNNING; cancelling it and restarting the API" | tee -a reports/deploy.log
+        BEFORE=$$(gcloud run services describe vap-api-$$E --region=$$R --format='value(status.latestReadyRevisionName)')
+        # --async: the cancelled execution's operation ends as "failed to complete", which gcloud
+        # reports as an error even though the cancellation succeeded; the state is checked below.
+        date -u +%FT%T.%3NZ > /workspace/interrupted-at
+        gcloud run jobs executions cancel "$$EXEC" --region=$$R --quiet --async
+        gcloud run services update vap-api-$$E --region=$$R --update-env-vars=VAP_RESTART_MARKER=$$BUILD_ID
+        AFTER=$$(gcloud run services describe vap-api-$$E --region=$$R --format='value(status.latestReadyRevisionName)')
+        [ "$$BEFORE" != "$$AFTER" ] || { echo "the API did not get a new revision"; exit 1; }
+        for i in $$(seq 1 30); do
+          gcloud run jobs executions describe "$$EXEC" --region=$$R --format=json > /tmp/x.json
+          python3 -c "import json,sys;s=json.load(open('/tmp/x.json')).get('status',{});sys.exit(0 if s.get('cancelledCount',0)>=1 or s.get('completionTime') else 1)" && break
+          sleep 4
+        done
+        python3 -c "import json;e=json.load(open('/tmp/x.json'));print(json.dumps({'execution':e['metadata']['name'],'status':e.get('status')}))" > reports/in-flight-execution-after-cancel.json
+        python3 -c "import json,sys;s=json.load(open('/tmp/x.json')).get('status',{});sys.exit(0 if s.get('cancelledCount',0)>=1 and s.get('succeededCount',0)==0 else 1)" || { echo "execution was not cancelled: $$(cat reports/in-flight-execution-after-cancel.json)"; exit 1; }
+        echo "execution $$EXEC cancelled; API revision $$BEFORE -> $$AFTER" | tee -a reports/deploy.log
 
-  - id: kill-worker
+  - id: after-interruption
+    name: ${_NODE}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh after-interruption
+        export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url)
+        # The interruption must have hit before verification finished.
+        node scripts/smoke.ts status $$(cat op-verify.txt) | tee reports/in-flight-after-interruption.json
+        node -e "const s=JSON.parse(require('fs').readFileSync('reports/in-flight-after-interruption.json','utf8'));process.exit(s.verification==='pending'?0:1)" || { echo "verification was no longer pending after the interruption"; exit 1; }
+        # Recovery by the scheduled sweeper, and journal durability across the API restart.
+        node scripts/smoke.ts check $$(cat op-basic.txt) 2> reports/check-basic.log
+        VAP_SMOKE_EXPECT=resumed VAP_SMOKE_INTERRUPTED_AT=$$(cat /workspace/interrupted-at) node scripts/smoke.ts check $$(cat op-verify.txt) 2> reports/check-verify.log
+        VAP_SMOKE_EXPECT=reconciled node scripts/smoke.ts check $$(cat op-lost.txt) 2> reports/check-lost.log
+        for o in basic verify lost; do node scripts/smoke.ts status $$(cat op-$$o.txt); done > reports/journal-before-db-restart.jsonl
+        echo "all operations reached the expected final state after the interruption" | tee -a reports/deploy.log
+
+  - id: restart-database
+    name: ${_GCLOUD}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh restart-database
+        gcloud sql instances restart vap-$$E --quiet
+        echo "Cloud SQL vap-$$E restarted at $$(date -u +%FT%TZ)" | tee -a reports/deploy.log
+
+  - id: journal-durability
+    name: ${_NODE}
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        source scripts/step-guard.sh journal-durability
+        export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url)
+        for i in $$(seq 1 30); do node scripts/smoke.ts status $$(cat op-basic.txt) >/dev/null 2>&1 && break; sleep 5; done
+        for o in basic verify lost; do node scripts/smoke.ts status $$(cat op-$$o.txt); done > reports/journal-after-db-restart.jsonl
+        cmp reports/journal-before-db-restart.jsonl reports/journal-after-db-restart.jsonl || { echo "the journal differs after the database restart"; exit 1; }
+        echo "journal identical after the Cloud SQL restart: 3 operations, $$(grep -o '"type"' reports/journal-after-db-restart.jsonl | wc -l) events" | tee -a reports/deploy.log
+
+  - id: logs
     name: ${_GCLOUD}
     entrypoint: bash
     args:
       - -c
       - |
-        EXEC=$$(gcloud run jobs executions list --job=vap-worker-${_ENVIRONMENT} --region=${LOCATION} --limit=1 --format='value(metadata.name)')
-        [ -n "$$EXEC" ] && gcloud run jobs executions cancel "$$EXEC" --region=${LOCATION} --quiet || true
-        gcloud run jobs execute vap-sweeper-${_ENVIRONMENT} --region=${LOCATION} --wait
-
-  - id: check-after-restart
-    name: ${_NODE}
-    entrypoint: bash
-    args: ["-c", "export VAP_URL=$$(cat api-url) VAP_FIXTURE_URL=$$(cat fixture-url) && node scripts/smoke.ts check $$(cat op-restart.txt) 2> reports/restart-check.log"]
+        set +e
+        F='(resource.type="cloud_run_revision" AND resource.labels.service_name=~"^vap-(api|fixture)-'$$E'$$") OR (resource.type="cloud_run_job" AND resource.labels.job_name=~"^vap-(worker|sweeper|migrate)-'$$E'$$")'
+        gcloud logging read "$$F" --freshness=2h --limit=2000 --format='value(timestamp,resource.labels.service_name,resource.labels.job_name,severity,jsonPayload.message,textPayload)' > reports/cloud-run-logs.txt 2>&1
+        echo "collected $$(wc -l < reports/cloud-run-logs.txt) log lines"
+        exit 0
 
   - id: evidence
     name: ${_NODE}
     entrypoint: bash
+    allowFailure: true
     env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=deploy-${_ENVIRONMENT}", "VAP_IMAGE_DIGEST=${_IMAGE}"]
-    args: ["-c", "rm -f .vap-token && node scripts/evidence.mjs reports"]
+    args:
+      - -c
+      - |
+        rm -f /workspace/.vap-token
+        for f in /workspace/status/*; do echo "$$(basename $$f): $$(cat $$f)"; done > reports/step-status.txt 2>/dev/null
+        node scripts/evidence.mjs reports || { touch /workspace/.failed; exit 1; }
 
   - id: teardown
     name: ${_GCLOUD}
@@ -171,16 +433,38 @@ steps:
     args:
       - -c
       - |
-        [ "${_TEARDOWN}" = "true" ] || { echo "teardown skipped; resources retained on request"; exit 0; }
-        for s in vap-api-${_ENVIRONMENT} vap-fixture-${_ENVIRONMENT}; do gcloud run services delete $$s --region=${LOCATION} --quiet && echo "deleted service $$s" || echo "FAILED to delete service $$s"; done
-        for j in vap-worker-${_ENVIRONMENT} vap-sweeper-${_ENVIRONMENT} vap-migrate-${_ENVIRONMENT}; do gcloud run jobs delete $$j --region=${LOCATION} --quiet && echo "deleted job $$j" || echo "FAILED to delete job $$j"; done
-        gcloud scheduler jobs delete vap-sweeper-${_ENVIRONMENT} --location=${LOCATION} --quiet && echo "deleted scheduler" || echo "FAILED to delete scheduler"
-        left=$$(gcloud run services list --region=${LOCATION} --filter="metadata.labels.vap-run=${_RUN_ID}" --format='value(metadata.name)'; gcloud run jobs list --region=${LOCATION} --filter="metadata.labels.vap-run=${_RUN_ID}" --format='value(metadata.name)')
-        [ -z "$$left" ] || { echo "labelled resources remain: $$left"; exit 1; }
-        echo "no Cloud Run service or job labelled vap-run=${_RUN_ID} remains"
-        echo "retained: Cloud SQL instance vap-${_ENVIRONMENT}, secrets, evidence bucket (persistent; delete with infra/gcp/teardown.sh)"
+        set +e
+        rm -rf /workspace/.db /workspace/.vap-token*
+        [ "${_TEARDOWN}" = "true" ] || { echo "teardown skipped; resources retained on request" | tee reports/teardown.log; exit 0; }
+        {
+          for s in vap-api-$$E vap-fixture-$$E; do gcloud run services describe $$s --region=$$R >/dev/null 2>&1 || { echo "absent  service $$s"; continue; }; gcloud run services delete $$s --region=$$R --quiet >/dev/null 2>&1 && echo "deleted service $$s" || echo "FAILED  service $$s"; done
+          for j in vap-worker-$$E vap-sweeper-$$E vap-migrate-$$E; do gcloud run jobs describe $$j --region=$$R >/dev/null 2>&1 || { echo "absent  job $$j"; continue; }; gcloud run jobs delete $$j --region=$$R --quiet >/dev/null 2>&1 && echo "deleted job $$j" || echo "FAILED  job $$j"; done
+          gcloud scheduler jobs describe vap-sweeper-$$E --location=$$R >/dev/null 2>&1 && { gcloud scheduler jobs delete vap-sweeper-$$E --location=$$R --quiet >/dev/null 2>&1 && echo "deleted scheduler vap-sweeper-$$E" || echo "FAILED  scheduler vap-sweeper-$$E"; } || echo "absent  scheduler vap-sweeper-$$E"
+          left=$$(gcloud run services list --region=$$R --filter="metadata.labels.vap-run=${_RUN_ID}" --format='value(metadata.name)'; gcloud run jobs list --region=$$R --filter="metadata.labels.vap-run=${_RUN_ID}" --format='value(metadata.name)'; gcloud scheduler jobs list --location=$$R --format='value(name)' | grep "/vap-sweeper-$$E$$")
+          if [ -n "$$left" ]; then echo "REMAINING: $$left"; touch /workspace/.failed; else echo "no Cloud Run service, job or scheduler of run ${_RUN_ID} remains"; fi
+          echo "retained until managed-teardown: Cloud SQL vap-$$E, its secrets, the exercise service accounts and their scoped bindings"
+        } 2>&1 | tee reports/teardown.log
+        exit 0
 
-artifacts:
-  objects:
-    location: gs://${_EVIDENCE_BUCKET}/deploy/${_ENVIRONMENT}/${_RUN_ID}/
-    paths: ["reports/*"]
+  - id: upload-evidence
+    name: ${_GCLOUD}
+    entrypoint: bash
+    # Explicit upload: Cloud Build stores `artifacts` only for successful builds, and the evidence
+    # of a failed gate matters as much.
+    args:
+      - -c
+      - |
+        set +e
+        gcloud storage cp reports/* "gs://${_EVIDENCE_BUCKET}/deploy/${_ENVIRONMENT}/${_RUN_ID}/" 2>&1 | tail -1
+        exit 0
+
+  - id: verdict
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        for f in /workspace/status/*; do echo "$$(basename $$f): $$(cat $$f)"; done
+        [ ! -e /workspace/.failed ] || { echo "managed deployment gate FAILED (see the step status above and reports/)"; exit 1; }
+        echo "managed deployment gate passed"

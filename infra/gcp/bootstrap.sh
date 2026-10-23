@@ -7,6 +7,12 @@
 #   VAP_GCP_PROJECT=<project> VAP_GCP_REGION=<region> VAP_EVIDENCE_BUCKET=<bucket> \
 #   VAP_ENVIRONMENT=staging bash infra/gcp/bootstrap.sh
 #
+# UNVERIFIED from a blank project (docs/acceptance.md, A8). The managed staging exercise used
+# infra/gcp/cloudbuild.managed-provision.yaml instead, which avoids two problems of this script:
+# users made with `gcloud sql users create` join cloudsqlsuperuser, so they are not least
+# privilege (create the roles over SQL, as that pipeline does), and vap-deployer below gets
+# project-level run.admin and cloudscheduler.admin (that pipeline deploys as the build identity).
+#
 # Cost note: Cloud SQL is billed while it exists (db-f1-micro is the smallest tier). Billing
 # alerts are not hard caps; delete the instance with teardown.sh when finished.
 set -euo pipefail
@@ -23,6 +29,7 @@ sa() { echo "$1@${P}.iam.gserviceaccount.com"; }
 
 echo "enabling APIs"
 g services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com sqladmin.googleapis.com \
+  sql-component.googleapis.com iamcredentials.googleapis.com cloudresourcemanager.googleapis.com \
   secretmanager.googleapis.com cloudscheduler.googleapis.com iam.googleapis.com storage.googleapis.com
 
 echo "service accounts"

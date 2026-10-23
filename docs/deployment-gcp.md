@@ -39,7 +39,26 @@ with their own short-lived login. No long-lived service account keys are created
 GitHub automation, if used, authenticates with Workload Identity Federation restricted to the
 repository and protected refs (`.github/workflows/cloud-test.yml`), never with stored keys.
 
-## Steps
+## Managed staging in an existing project (exercised)
+
+This path ran end to end ([release/managed-staging-results.md](release/managed-staging-results.md)).
+It needs the APIs `run`, `sqladmin`, `sql-component`, `secretmanager`, `cloudscheduler`,
+`iamcredentials` and `cloudresourcemanager`, and a build identity that may create the resources
+below; it creates no deployer account and no project-level Run or Scheduler role.
+
+1. `bash scripts/vap-cloud.sh managed-provision --expires <unix seconds>`: service accounts, Cloud
+   SQL with least-privilege roles created over SQL, secrets and instance- or resource-scoped IAM
+   (`infra/gcp/cloudbuild.managed-provision.yaml`).
+2. `bash scripts/vap-cloud.sh release`, then
+   `bash scripts/vap-cloud.sh deploy --image <region>-docker.pkg.dev/<project>/vap/vap@sha256:<digest>`:
+   the managed deployment gate (`infra/gcp/cloudbuild.deploy.yaml`). Its checks never skip its own
+   teardown of the Cloud Run services, jobs and scheduler.
+3. `bash scripts/vap-cloud.sh managed-teardown`: deletes Cloud SQL (no final backup), the secrets,
+   the bindings and the service accounts, then verifies by listing. Google Cloud has no expiry
+   for these resources; `--expires` is only recorded as a label, so the operator must run the
+   teardown (or schedule it) by that time.
+
+## Steps (blank project; unverified)
 
 1. **Bootstrap once** (operator):
    `VAP_GCP_PROJECT=... VAP_GCP_REGION=... VAP_EVIDENCE_BUCKET=... VAP_ENVIRONMENT=staging bash infra/gcp/bootstrap.sh`.
@@ -50,11 +69,8 @@ repository and protected refs (`.github/workflows/cloud-test.yml`), never with s
 2. **Build a release image**: `bash scripts/vap-cloud.sh release --commit <sha>`. The build log
    prints the image digest; it is also in `results.images` of the evidence index.
 3. **Rehearse staging**: `bash scripts/vap-cloud.sh deploy --image <region>-docker.pkg.dev/<project>/vap/vap@sha256:<digest>`.
-   The pipeline migrates, deploys the fixture, worker and sweeper jobs, scheduler and API, runs an
-   authenticated smoke test, starts an operation, restarts the API and cancels the worker
-   execution mid-flight, runs the sweeper, checks that the operation ends verified or honestly
-   `unknown` (never resubmitted without reconciliation), writes evidence, and tears staging down
-   unless `--keep` is given.
+   The pipeline expects the resources of `managed-provision` (above); see
+   [release/managed-staging-results.md](release/managed-staging-results.md) for what it checks.
 4. **Teardown**: `VAP_DELETE_DATABASE=true bash infra/gcp/teardown.sh` removes everything for the
    environment and reports each deleted, retained or failed resource.
 

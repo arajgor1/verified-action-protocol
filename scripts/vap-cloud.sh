@@ -12,7 +12,9 @@
 #   bash scripts/vap-cloud.sh manifest --tested <sha> --images <ref@sha256:...+ref@sha256:...> [--commit <final sha>]
 #   bash scripts/vap-cloud.sh browser-linkage --image <registry/path@sha256:...> --image-commit <sha>
 #   bash scripts/vap-cloud.sh staging-rehearsal --image <registry/path@sha256:...> [--commit <sha>]
+#   bash scripts/vap-cloud.sh managed-provision --expires <unix seconds>
 #   bash scripts/vap-cloud.sh deploy --image <registry/path@sha256:...> [--keep]
+#   bash scripts/vap-cloud.sh managed-teardown
 #   bash scripts/vap-cloud.sh cleanup --run <run_id>
 #
 # Requires VAP_GCP_PROJECT, VAP_GCP_REGION and VAP_EVIDENCE_BUCKET from the operator's private
@@ -20,7 +22,7 @@
 set -euo pipefail
 
 cmd="${1:-}"; shift || true
-SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; CONFIG="examples/config/adapters.tutorial.json"
+SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; CONFIG="examples/config/adapters.tutorial.json"
 while [ $# -gt 0 ]; do
   case "$1" in
     --suite) SUITE="$2"; shift 2 ;;
@@ -34,6 +36,7 @@ while [ $# -gt 0 ]; do
     --image-commit) IMAGE_COMMIT="$2"; shift 2 ;;
     --history-ref) HISTREF="$2"; shift 2 ;;
     --strict-history) STRICT=1; shift ;;
+    --expires) EXPIRES="$2"; shift 2 ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -109,11 +112,15 @@ case "$cmd" in
   staging-rehearsal)
     [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "--image must be an immutable digest reference" >&2; exit 2; }
     archive; submit infra/gcp/cloudbuild.staging-rehearsal.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE" ;;
+  managed-provision)
+    [[ "$EXPIRES" =~ ^[0-9]{10}$ ]] || { echo "--expires must be the teardown deadline in unix seconds" >&2; exit 2; }
+    archive; submit infra/gcp/cloudbuild.managed-provision.yaml "_RUN_ID=$RUN_ID,_ENVIRONMENT=staging,_EXPIRES=$EXPIRES" ;;
+  managed-teardown) archive; submit infra/gcp/cloudbuild.managed-teardown.yaml "_RUN_ID=$RUN_ID,_ENVIRONMENT=staging" ;;
   deploy)
     [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "--image must be an immutable digest reference" >&2; exit 2; }
     archive; submit infra/gcp/cloudbuild.deploy.yaml "_RUN_ID=$RUN_ID,_IMAGE=$IMAGE,_ENVIRONMENT=staging,_TEARDOWN=$TEARDOWN" ;;
   cleanup)
     [[ "$RUN" =~ ^[a-z0-9]{6,40}$ ]] || { echo "--run must be a VAP run id" >&2; exit 2; }
     archive; submit infra/gcp/cloudbuild.cleanup.yaml "_RUN_ID=$RUN" ;;
-  *) sed -n '2,20p' "$0"; exit 2 ;;
+  *) sed -n '2,22p' "$0"; exit 2 ;;
 esac

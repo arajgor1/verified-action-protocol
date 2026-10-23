@@ -1,10 +1,22 @@
-# Managed staging rehearsal: execution plan (awaiting authorization)
+# Managed staging rehearsal: execution plan
 
-**Status: NOT AUTHORIZED, NOT RUN.** This plan needs the owner's explicit approval of the
-spending ceiling, the resources and the IAM changes below. The pipelines it uses
-(`infra/gcp/bootstrap.sh`, `infra/gcp/cloudbuild.deploy.yaml`, `infra/gcp/teardown.sh`) have been
-written and reviewed but never executed against managed services. Owner-specific values
-(project, region, bucket) are supplied at run time and recorded only in the operator-only index.
+**Status: authorized by the owner (spending ceiling $25, existing project, scoped IAM only) and
+executed.** Results: [managed-staging-results.md](managed-staging-results.md). This page keeps the
+plan as proposed; section 0 lists where the execution deliberately differed from it.
+
+## 0. As executed (differences from the proposal below)
+
+| Proposal | As executed | Why |
+|---|---|---|
+| `bootstrap.sh` creates 11 accounts, including `vap-deployer` with project-level `run.admin` and `cloudscheduler.admin` | `cloudbuild.managed-provision.yaml` creates only `vap-api`, `vap-worker`, `vap-migrator`, `vap-fixture`, `vap-scheduler`, `vap-smoke`; deploys run as the project's existing build identity | no project-wide administrative grant |
+| `gcloud sql users create` for the three database users | roles created over SQL by the instance admin, whose password is then rotated to a discarded value | `sql users create` makes members of `cloudsqlsuperuser`, which is not least privilege |
+| `roles/cloudsql.client` at project level | the same role with an IAM condition limiting it to instance `vap-staging` | Cloud SQL has no instance-level IAM |
+| `vap-scheduler` gets `roles/run.invoker` at project level | `roles/run.invoker` on the sweeper job only | narrower |
+| OpenID token creator granted to `vap-deployer` on `vap-smoke` | granted to the build identity on `vap-smoke` only | there is no deployer account |
+| services write evidence to the private bucket (`storage.objectAdmin`) | services keep evidence artifacts in the PostgreSQL artifact store; no bucket role for them | protects the preserved release evidence |
+| Cloud SQL 10 GB with auto-increase, default backup retention | 10 GB, auto-increase off, 1 retained backup, 1 day of transaction logs, no final backup on delete, deletion protection off | bounded cost and complete teardown |
+| `teardown.sh` keeps the accounts | `cloudbuild.managed-teardown.yaml` removes the accounts and their bindings too | nothing of the exercise remains |
+| — | API `sql-component.googleapis.com` was also required (Cloud Run's Cloud SQL attachment) | found during the run |
 
 ## 1. Resources to create
 
