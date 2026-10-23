@@ -20,4 +20,30 @@ fails unless:
 - every documented `scripts/vap-cloud.sh` command and `infra/gcp` pipeline exists in the
   validated commit.
 
-The result of that check is recorded below.
+## Manifest check result
+
+Cloud Build `343e02e0-feb8-4ab5-8c14-af41ca3fcee9`, on branch `publication/v0.1.0-rc1`, checked
+validated commit `5df8873` against `7777b07` and passed:
+- the validated commit is an ancestor;
+- 1 commit after it, 8 files changed, 0 outside documentation;
+- 0 documented-command problems;
+- the tree's owner-identifier scan is clean.
+
+The validated commit's full reachable history was scanned in strict mode by release `9fea3c08`.
+Every later change is a documentation diff whose resulting tree was scanned.
+
+| Status | Path |
+|---|---|
+| M | docs/demo/ci-failure-results.md |
+| M | docs/demo/evidence/ci-demo-receipt.json |
+| M | docs/demo/evidence/ci-demo-transcript.md |
+| M | docs/process-deviations.md |
+| M | docs/release/candidate-evidence.md |
+| M | docs/release/manifest.md |
+| M | docs/security/browser-image-assessment.md |
+| M | docs/security/vulnerability-dispositions.md |
+
+Documented dispatcher commands, all present in the validated commit: `browser-linkage`, `cleanup`, `demo`, `deploy`, `image-gate`, `lock`, `manifest`, `release`, `staging-rehearsal`, `test`, `tutorial`.
+
+The commit that adds this section changes only this file. Its check is recorded in the
+operator-only index.
