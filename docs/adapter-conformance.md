@@ -13,7 +13,7 @@ recover(operation, plan, strategy, ctx): Promise<RecoveryPlanSpec>
 ```
 
 Unsupported methods throw `CAPABILITY_UNAVAILABLE` with a safe explanation (`BaseAdapter` in
-`@vap/sdk` does this by default). The context carries authorized targets, a deadline, an abort
+`@verified-action-protocol/sdk` does this by default). The context carries authorized targets, a deadline, an abort
 signal, the operation id and the destination key, never deployment-admin credentials.
 
 Contract details adapters must honor:
@@ -45,7 +45,7 @@ Native or external is provenance (`built_in` / `operator_configured`), not a pro
 conformance report (`reports/conformance-*.json` from the cloud test pipeline) lists exactly
 which profiles each action passed. `/v1/info` shows only *declared* profiles.
 
-`staticConformance(adapter)` in `@vap/sdk` checks descriptors without a destination: schema
+`staticConformance(adapter)` in `@verified-action-protocol/sdk` checks descriptors without a destination: schema
 validity, tier versus side effects, capability coherence, recovery declarations, and the
 `CAPABILITY_UNAVAILABLE` behavior of unsupported methods.
 

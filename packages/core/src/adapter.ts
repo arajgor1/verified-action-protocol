@@ -8,7 +8,7 @@ import type {
   RecoveryMode,
   ResourceCondition,
   VapErrorBody,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type { Logger } from "./log.js";
 
 /**

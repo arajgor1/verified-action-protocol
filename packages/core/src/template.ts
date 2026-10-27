@@ -1,4 +1,4 @@
-import { VapError } from "@vap/protocol";
+import { VapError } from "@verified-action-protocol/protocol";
 
 const PLACEHOLDER = /\{(result|args|prior|item|request)\.([A-Za-z0-9_]{1,64}(?:\.[A-Za-z0-9_]{1,64}){0,3})\}/g;
 const SAFE_SEGMENT = /^[A-Za-z0-9._~-]{1,256}$/;

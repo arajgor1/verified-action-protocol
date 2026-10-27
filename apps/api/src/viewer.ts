@@ -1,6 +1,6 @@
-import { VapError } from "@vap/protocol";
-import type { Operation, Receipt } from "@vap/protocol";
-import type { Coordinator, Principal } from "@vap/core";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Operation, Receipt } from "@verified-action-protocol/protocol";
+import type { Coordinator, Principal } from "@verified-action-protocol/core";
 
 /**
  * Lightweight read-only operation viewer. It applies the same authorization as the API

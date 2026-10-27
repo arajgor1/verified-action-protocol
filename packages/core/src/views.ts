@@ -1,4 +1,4 @@
-import { deriveOutcome, isUnresolved, PROTOCOL_VERSION, retryGuidance } from "@vap/protocol";
+import { deriveOutcome, isUnresolved, PROTOCOL_VERSION, retryGuidance } from "@verified-action-protocol/protocol";
 import type {
   ActionDescriptor,
   Approval,
@@ -13,7 +13,7 @@ import type {
   Task,
   TaskOutcome,
   TaskOutcomeCheck,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type { StoredOperation, StoredPlan } from "./journal.js";
 
 export function operationView(op: StoredOperation): Operation {

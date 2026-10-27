@@ -12,7 +12,7 @@ import type {
   Task,
   VapErrorBody,
   VerificationStatus,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type { Role } from "./principal.js";
 
 /** Plan as persisted: immutable fields only. status/approval are evaluated at read time. */

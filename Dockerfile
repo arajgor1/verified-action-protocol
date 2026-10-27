@@ -16,9 +16,9 @@ COPY fixtures ./fixtures
 # Frozen lockfile, no install scripts (Playwright browsers are installed explicitly in the browser target).
 RUN npm ci --ignore-scripts
 RUN npm run build
-# Playwright is a development dependency and an optional peer of @vap/adapters. npm marks it
-# devOptional, which `prune --omit=dev` keeps, so it is removed explicitly: the supported runtime
-# image carries no browser automation code. The experimental worker-browser target adds back these
+# Playwright is a development dependency and an optional peer of
+# @verified-action-protocol/adapters. npm marks it devOptional, which `prune --omit=dev` keeps, so
+# it is removed explicitly: the supported runtime image carries no browser automation code. The experimental worker-browser target adds back these
 # two lockfile-verified packages.
 RUN mkdir -p /opt/browser-modules && cp -a node_modules/playwright node_modules/playwright-core /opt/browser-modules/
 RUN npm prune --omit=dev --ignore-scripts \

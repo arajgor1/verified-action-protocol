@@ -1,7 +1,7 @@
 import pg from "pg";
 import type { Pool, PoolClient, PoolConfig } from "pg";
-import { PROTOCOL_VERSION, VapError } from "@vap/protocol";
-import type { Approval, EventType, Evidence, Grant, OperationEvent, Task } from "@vap/protocol";
+import { PROTOCOL_VERSION, VapError } from "@verified-action-protocol/protocol";
+import type { Approval, EventType, Evidence, Grant, OperationEvent, Task } from "@verified-action-protocol/protocol";
 import type {
   AttemptRow,
   Journal,
@@ -13,7 +13,7 @@ import type {
   StoredOperation,
   StoredPlan,
   TombstoneRow,
-} from "@vap/core";
+} from "@verified-action-protocol/core";
 
 type Row = Record<string, unknown>;
 

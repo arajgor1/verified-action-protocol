@@ -1,8 +1,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, LATEST_PROTOCOL_VERSION, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { VapError } from "@vap/protocol";
-import type { Operation, Receipt } from "@vap/protocol";
-import type { VapClient } from "@vap/sdk";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Operation, Receipt } from "@verified-action-protocol/protocol";
+import type { VapClient } from "@verified-action-protocol/sdk";
 
 /**
  * Ordinary MCP tools mapped onto the VAP HTTP API. The bridge holds no authority of its

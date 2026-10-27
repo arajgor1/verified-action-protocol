@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
-import type { Grant } from "@vap/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { recordScenario, writeReport } from "../helpers/report.ts";
 import { key, ownerCheck, ROOT, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

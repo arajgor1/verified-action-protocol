@@ -1,4 +1,4 @@
-import type { Check, SideEffect } from "@vap/protocol";
+import type { Check, SideEffect } from "@verified-action-protocol/protocol";
 
 /**
  * Declarative HTTP adapter configuration. Mappings are data, not executable templates:

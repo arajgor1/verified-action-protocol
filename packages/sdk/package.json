@@ -1,5 +1,5 @@
 {
-  "name": "@vap/sdk",
+  "name": "@verified-action-protocol/sdk",
   "version": "0.1.0-rc.1",
   "description": "VAP TypeScript client, adapter SDK, conformance helpers and vap CLI",
   "license": "Apache-2.0",
@@ -10,7 +10,7 @@
   "bin": { "vap": "./dist/cli.js" },
   "files": ["dist"],
   "dependencies": {
-    "@vap/core": "0.1.0-rc.1",
-    "@vap/protocol": "0.1.0-rc.1"
+    "@verified-action-protocol/core": "0.1.0-rc.1",
+    "@verified-action-protocol/protocol": "0.1.0-rc.1"
   }
 }

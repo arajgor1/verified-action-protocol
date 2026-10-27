@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import * as P from "@vap/protocol";
-import { loadSchemas, schemaValidator } from "@vap/protocol";
-import type { SchemaName } from "@vap/protocol";
+import * as P from "@verified-action-protocol/protocol";
+import { loadSchemas, schemaValidator } from "@verified-action-protocol/protocol";
+import type { SchemaName } from "@verified-action-protocol/protocol";
 import { ROOT } from "../helpers/paths.ts";
 
 const schemas = loadSchemas();

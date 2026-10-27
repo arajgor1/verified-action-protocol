@@ -1,5 +1,5 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { tokenFromEnv, VapClient } from "@vap/sdk";
+import { tokenFromEnv, VapClient } from "@verified-action-protocol/sdk";
 import { createBridge } from "./bridge.js";
 
 // stdio MCP bridge. Runs in the authorized cloud development environment and obtains VAP

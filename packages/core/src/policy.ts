@@ -1,5 +1,5 @@
-import { TIER_BY_SIDE_EFFECT_CLASS } from "@vap/protocol";
-import type { Grant, RiskTier, SideEffect, TaskScope } from "@vap/protocol";
+import { TIER_BY_SIDE_EFFECT_CLASS } from "@verified-action-protocol/protocol";
+import type { Grant, RiskTier, SideEffect, TaskScope } from "@verified-action-protocol/protocol";
 
 /** An action inherits the strictest tier implied by any of its side effects. */
 export function strictestTier(sideEffects: SideEffect[]): RiskTier {

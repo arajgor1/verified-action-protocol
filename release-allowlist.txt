@@ -42,6 +42,9 @@ fixtures/issue-tracker/src/*.ts
 fixtures/cli/bin/*.mjs
 fixtures/cli/workspace-template/**
 examples/config/*.json
+examples/sdk/offline-check.mjs
+examples/sdk/typecheck.ts
+examples/sdk/tsconfig.json
 tests/**/*.ts
 benchmarks/**/*.ts
 benchmarks/**/*.md

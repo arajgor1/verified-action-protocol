@@ -1,5 +1,5 @@
 {
-  "name": "@vap/fixture-issue-tracker",
+  "name": "@verified-action-protocol/fixture-issue-tracker",
   "version": "0.1.0-rc.1",
   "private": true,
   "description": "Deterministic issue-tracker destination used by VAP demos, conformance and fault tests",

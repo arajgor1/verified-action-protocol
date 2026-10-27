@@ -3,9 +3,9 @@
 // fixture). Runs only in the cloud test container (needs PostgreSQL and built apps).
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import type { Grant, Operation, Plan } from "@vap/protocol";
-import { renderIssue, sanitizeErrorOutput } from "@vap/adapters";
-import type { CiFailureArgs } from "@vap/adapters";
+import type { Grant, Operation, Plan } from "@verified-action-protocol/protocol";
+import { renderIssue, sanitizeErrorOutput } from "@verified-action-protocol/adapters";
+import type { CiFailureArgs } from "@verified-action-protocol/adapters";
 import { issueArgsFrom, issueChecks } from "../../demo/ci-failure/lib/agents.ts";
 import type { AgentEnv } from "../../demo/ci-failure/lib/agents.ts";
 import { startFaultProxy } from "../../demo/ci-failure/lib/fault-proxy.ts";

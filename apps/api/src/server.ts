@@ -8,7 +8,7 @@ import {
   schemaValidator,
   SUPPORTED_PROTOCOL_VERSIONS,
   VapError,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type {
   ApprovalCreateRequest,
   GrantCreateRequest,
@@ -22,9 +22,9 @@ import type {
   SchemaName,
   TaskCreateRequest,
   TaskReviseRequest,
-} from "@vap/protocol";
-import type { Coordinator, Logger, Principal } from "@vap/core";
-import { hasRole, ROLES } from "@vap/core";
+} from "@verified-action-protocol/protocol";
+import type { Coordinator, Logger, Principal } from "@verified-action-protocol/core";
+import { hasRole, ROLES } from "@verified-action-protocol/core";
 import type { Authenticator } from "./auth.js";
 import { DEMO_PRINCIPALS } from "./auth.js";
 import { Metrics } from "./metrics.js";

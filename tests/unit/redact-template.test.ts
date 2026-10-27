@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { containsSensitiveMaterial, expandTemplate, matchUriTemplate, redact, redactString, registerSensitiveValue, REDACTED } from "@vap/core";
+import { containsSensitiveMaterial, expandTemplate, matchUriTemplate, redact, redactString, registerSensitiveValue, REDACTED } from "@verified-action-protocol/core";
 
 const CANARY = "VAPCANARY-unit-3f9a";
 

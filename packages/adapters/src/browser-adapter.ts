@@ -1,6 +1,6 @@
-import { PROTOCOL_VERSION, sha256Digest, VapError } from "@vap/protocol";
-import type { ActionDescriptor, Check, Effect, Operation, Plan, RecoveryMode } from "@vap/protocol";
-import { expandTemplate, redactString } from "@vap/core";
+import { PROTOCOL_VERSION, sha256Digest, VapError } from "@verified-action-protocol/protocol";
+import type { ActionDescriptor, Check, Effect, Operation, Plan, RecoveryMode } from "@verified-action-protocol/protocol";
+import { expandTemplate, redactString } from "@verified-action-protocol/core";
 import type {
   Adapter,
   AdapterContext,
@@ -13,7 +13,7 @@ import type {
   RecoveryPlanSpec,
   VerifyContext,
   VerifyObservation,
-} from "@vap/core";
+} from "@verified-action-protocol/core";
 import type { Browser, BrowserContext, Page, Request, Response } from "playwright";
 import dns from "node:dns";
 import net from "node:net";
@@ -52,8 +52,12 @@ export interface BrowserAdapterConfig {
 
 export interface BrowserAdapterOptions {
   isolatedTestMode?: boolean;
-  /** Override for tests; defaults to launching Playwright Chromium headless. */
-  launch?: () => Promise<Browser>;
+  /**
+   * Override for tests; defaults to launching Playwright Chromium headless. Must resolve to a
+   * Playwright `Browser`; typed `unknown` so the published declarations do not reference the
+   * optional `playwright` peer.
+   */
+  launch?: () => Promise<unknown>;
 }
 
 interface NetEvent {
@@ -160,7 +164,7 @@ export class BrowserAdapter implements Adapter {
 
   private async getBrowser(): Promise<Browser> {
     if (this.browser) return this.browser;
-    if (this.opts.launch) this.browser = await this.opts.launch();
+    if (this.opts.launch) this.browser = (await this.opts.launch()) as Browser;
     else {
       const pinned = await this.checkedOriginAddress();
       const host = this.origin.hostname.replace(/^\[|\]$/g, "");

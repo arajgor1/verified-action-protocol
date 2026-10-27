@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS, VapError } from "@vap/protocol";
+import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS, VapError } from "@verified-action-protocol/protocol";
 import type {
   ActionListEntry,
   Approval,
@@ -21,7 +21,7 @@ import type {
   TaskOutcome,
   TaskReviseRequest,
   VapErrorBody,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type { TokenProvider } from "./tokens.js";
 
 type Body<T> = Omit<T, "protocol_version">;

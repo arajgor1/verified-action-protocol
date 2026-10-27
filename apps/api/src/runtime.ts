@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
-import { buildRegistry, loadAdaptersConfig } from "@vap/adapters";
-import { Coordinator, createLogger, GcsArtifactStore, InlineExecutor, metadataAccessToken, registerSensitiveValue } from "@vap/core";
-import type { ArtifactStore, CloudExecutor, Logger } from "@vap/core";
-import { assertSchemaCurrent, migrate, PgArtifactStore, PgJournal } from "@vap/store-postgres";
+import { buildRegistry, loadAdaptersConfig } from "@verified-action-protocol/adapters";
+import { Coordinator, createLogger, GcsArtifactStore, InlineExecutor, metadataAccessToken, registerSensitiveValue } from "@verified-action-protocol/core";
+import type { ArtifactStore, CloudExecutor, Logger } from "@verified-action-protocol/core";
+import { assertSchemaCurrent, migrate, PgArtifactStore, PgJournal } from "@verified-action-protocol/store-postgres";
 import { CloudRunJobExecutor } from "./cloudrun.js";
 import type { RuntimeConfig } from "./config.js";
 

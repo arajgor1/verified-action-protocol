@@ -51,7 +51,9 @@ These are design boundaries or open items, not bugs to hide.
   A remote MCP HTTP endpoint and its OAuth lifecycle are deferred.
 - **Model benchmarks** are not run; the deterministic harness has run three times
   (docs/benchmark-results.md). Its concurrent-edit scenario did not exercise the race in practice.
-- **Names**: the "VAP" name and the `@vap/*` npm scope are provisional and unpublished.
+- **Names**: the "VAP" name is provisional. The npm packages are named
+  `@verified-action-protocol/*` and are not published; the owner has not yet confirmed ownership
+  of that npm scope. The similarly named `@vap` scope belongs to an unrelated publisher.
 - **Modal executor** is not implemented; only the `CloudExecutor` interface exists.
 
 ## GitHub issues adapter and the CI-failure demo

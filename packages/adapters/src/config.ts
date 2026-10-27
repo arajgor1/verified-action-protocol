@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { AdapterRegistry } from "@vap/core";
+import { AdapterRegistry } from "@verified-action-protocol/core";
 import { BrowserAdapter } from "./browser-adapter.js";
 import type { BrowserAdapterConfig } from "./browser-adapter.js";
 import { CliAdapter } from "./cli-adapter.js";

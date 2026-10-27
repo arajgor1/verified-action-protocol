@@ -1,5 +1,5 @@
 {
-  "name": "@vap/core",
+  "name": "@verified-action-protocol/core",
   "version": "0.1.0-rc.1",
   "description": "VAP plans, policy, lifecycle, reconciliation and verification",
   "license": "Apache-2.0",
@@ -9,6 +9,6 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "dependencies": {
-    "@vap/protocol": "0.1.0-rc.1"
+    "@verified-action-protocol/protocol": "0.1.0-rc.1"
   }
 }

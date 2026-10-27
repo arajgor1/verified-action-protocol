@@ -1,6 +1,6 @@
-import { PROTOCOL_VERSION, schemaValidator, TIER_BY_SIDE_EFFECT_CLASS, VapError } from "@vap/protocol";
-import type { ActionDescriptor, CapabilityVector, Check, Operation, Plan, RecoveryMode, SideEffect } from "@vap/protocol";
-import { strictestTier } from "@vap/core";
+import { PROTOCOL_VERSION, schemaValidator, TIER_BY_SIDE_EFFECT_CLASS, VapError } from "@verified-action-protocol/protocol";
+import type { ActionDescriptor, CapabilityVector, Check, Operation, Plan, RecoveryMode, SideEffect } from "@verified-action-protocol/protocol";
+import { strictestTier } from "@verified-action-protocol/core";
 import type {
   Adapter,
   AdapterContext,
@@ -13,10 +13,10 @@ import type {
   RecoveryPlanSpec,
   VerifyContext,
   VerifyObservation,
-} from "@vap/core";
+} from "@verified-action-protocol/core";
 
-export { redact, redactString, registerSensitiveValue, allowlist } from "@vap/core";
-export type { Adapter, AdapterContext, AdapterResult, ExecuteContext, LookupResult, ObserveQuery, ObserveResult, PrepareResult, RecoveryPlanSpec, VerifyContext, VerifyObservation } from "@vap/core";
+export { redact, redactString, registerSensitiveValue, allowlist } from "@verified-action-protocol/core";
+export type { Adapter, AdapterContext, AdapterResult, ExecuteContext, LookupResult, ObserveQuery, ObserveResult, PrepareResult, RecoveryPlanSpec, VerifyContext, VerifyObservation } from "@verified-action-protocol/core";
 
 /** Error constructor for unsupported adapter methods. */
 export function unavailable(explanation: string): VapError {

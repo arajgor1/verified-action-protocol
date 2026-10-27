@@ -5,7 +5,7 @@ import {
   PROTOCOL_VERSION,
   schemaValidator,
   VapError,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type {
   ActionDescriptor,
   ActionListEntry,
@@ -32,7 +32,7 @@ import type {
   TaskCreateRequest,
   TaskOutcome,
   TaskReviseRequest,
-} from "@vap/protocol";
+} from "@verified-action-protocol/protocol";
 import type { Adapter, AdapterContext, AdapterResult, ExecuteContext, LookupResult } from "./adapter.js";
 import type { ArtifactStore } from "./artifacts.js";
 import type { CloudExecutor } from "./executor.js";

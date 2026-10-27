@@ -3,7 +3,7 @@
 // delayed completion, and the same task through the HTTP adapter and the browser recipe.
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import type { Grant } from "@vap/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { recordProfile, recordScenario, writeReport } from "../helpers/report.ts";
 import { key, ownerCheck, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

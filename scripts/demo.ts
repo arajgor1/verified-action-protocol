@@ -2,7 +2,7 @@
 // reconciles without duplication, and a partial batch, printed as receipts. Uses synthetic
 // data only and removes every database it creates.
 import "./cloud-guard.ts";
-import type { Receipt } from "@vap/protocol";
+import type { Receipt } from "@verified-action-protocol/protocol";
 import { key, ownerCheck, startHarness } from "../tests/helpers/harness.ts";
 
 function show(title: string, r: Receipt): void {

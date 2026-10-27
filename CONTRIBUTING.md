@@ -37,7 +37,7 @@ or have the right to submit it under the project license.
 Adapters are trusted, reviewed code compiled into the image, or declarative HTTP mappings
 installed by an operator. Every capability an action declares must be backed by a test; an
 unproven guarantee is declared `unavailable`, not claimed. Run `staticConformance` from
-`@vap/sdk` and add runtime profile tests (Core, Verified, Recoverable) under `tests/conformance`.
+`@verified-action-protocol/sdk` and add runtime profile tests (Core, Verified, Recoverable) under `tests/conformance`.
 
 ## Style
 

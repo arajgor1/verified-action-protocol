@@ -2,8 +2,8 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { VapError } from "@vap/protocol";
-import type { Operation, Receipt } from "@vap/protocol";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Operation, Receipt } from "@verified-action-protocol/protocol";
 import { VapClient } from "./client.js";
 import { tokenFromEnv } from "./tokens.js";
 

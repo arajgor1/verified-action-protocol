@@ -1,5 +1,5 @@
 {
-  "name": "@vap/adapters",
+  "name": "@verified-action-protocol/adapters",
   "version": "0.1.0-rc.1",
   "description": "VAP reference adapters: declarative HTTP and registered-command CLI; the bounded browser adapter is experimental and needs the optional peer dependency playwright",
   "license": "Apache-2.0",
@@ -9,8 +9,8 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "dependencies": {
-    "@vap/core": "0.1.0-rc.1",
-    "@vap/protocol": "0.1.0-rc.1"
+    "@verified-action-protocol/core": "0.1.0-rc.1",
+    "@verified-action-protocol/protocol": "0.1.0-rc.1"
   },
   "peerDependencies": {
     "playwright": "1.63.0"

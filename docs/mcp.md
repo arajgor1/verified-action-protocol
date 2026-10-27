@@ -2,7 +2,7 @@
 
 `apps/mcp` is an ordinary stdio MCP server built with the official TypeScript SDK
 (`@modelcontextprotocol/sdk` 1.32.1, low-level `Server` with `tools` capability). It maps
-standard tool calls onto the VAP HTTP API through `@vap/sdk`'s client. It defines no new
+standard tool calls onto the VAP HTTP API through `@verified-action-protocol/sdk`'s client. It defines no new
 protocol methods and no undocumented capabilities; VAP capabilities are discovered through the
 `vap_info` tool.
 

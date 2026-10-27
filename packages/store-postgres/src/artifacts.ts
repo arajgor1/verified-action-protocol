@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
-import type { ArtifactRef } from "@vap/protocol";
-import { prepareArtifact } from "@vap/core";
-import type { ArtifactStore } from "@vap/core";
+import type { ArtifactRef } from "@verified-action-protocol/protocol";
+import { prepareArtifact } from "@verified-action-protocol/core";
+import type { ArtifactStore } from "@verified-action-protocol/core";
 
 /**
  * Bounded inline artifact store in the journal database, used when no private bucket is

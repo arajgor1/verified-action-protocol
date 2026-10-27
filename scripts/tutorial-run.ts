@@ -9,7 +9,7 @@ import "./cloud-guard.ts";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { startFixture } from "@vap/fixture-issue-tracker";
+import { startFixture } from "@verified-action-protocol/fixture-issue-tracker";
 import { createDatabase, ROOT } from "../tests/helpers/harness.ts";
 import { createVapRuntime } from "../demo/ci-failure/lib/runtime.ts";
 

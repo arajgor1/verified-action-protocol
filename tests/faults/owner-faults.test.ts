@@ -2,8 +2,8 @@
 // aim a disruption at one operation on a horizontally scaled fixture.
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { parseOwnerFaults, startFixture } from "@vap/fixture-issue-tracker";
-import type { FixtureHandle } from "@vap/fixture-issue-tracker";
+import { parseOwnerFaults, startFixture } from "@verified-action-protocol/fixture-issue-tracker";
+import type { FixtureHandle } from "@verified-action-protocol/fixture-issue-tracker";
 import { createDatabase, sleep } from "../helpers/harness.ts";
 
 let db: Awaited<ReturnType<typeof createDatabase>>;

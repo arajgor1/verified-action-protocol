@@ -2,8 +2,8 @@
 // action, native vs best-effort concurrency (T06) and unsupported recovery.
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { VapError } from "@vap/protocol";
-import type { Grant } from "@vap/protocol";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { recordProfile, writeReport } from "../helpers/report.ts";
 import { key, ownerCheck, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

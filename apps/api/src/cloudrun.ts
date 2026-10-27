@@ -1,5 +1,5 @@
-import { metadataAccessToken } from "@vap/core";
-import type { CloudExecutor } from "@vap/core";
+import { metadataAccessToken } from "@verified-action-protocol/core";
+import type { CloudExecutor } from "@verified-action-protocol/core";
 
 /**
  * GCP CloudExecutor: starts one Cloud Run job execution per accepted operation. A lost

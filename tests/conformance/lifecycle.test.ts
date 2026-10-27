@@ -1,8 +1,8 @@
 // Conformance: lifecycle, idempotency, plans, verification and inspection (PR01-PR08, T01, T02).
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { PROTOCOL_VERSION, schemaValidator, VapError } from "@vap/protocol";
-import type { Grant } from "@vap/protocol";
+import { PROTOCOL_VERSION, schemaValidator, VapError } from "@verified-action-protocol/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { AGENT, AGENT2, DIGEST_KEY, key, ownerCheck, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";
 
@@ -68,7 +68,7 @@ describe("PR03 immutable, expiring plans", () => {
     const plan = await h.agent.prepare({ task_id: task.id, action_id: "issues.update_owner", arguments: { issue_id: issue.id, owner: "bob" } });
     // Plans are append-only (database trigger), so expiry is exercised with a coordinator whose clock runs 10 minutes ahead.
     await assert.rejects(h.journal.pool.query("UPDATE plans SET principal = principal WHERE id = $1", [plan.id]), /append-only/);
-    const { Coordinator } = await import("@vap/core");
+    const { Coordinator } = await import("@verified-action-protocol/core");
     const future = new Coordinator(h.journal, h.registry, { digestKey: DIGEST_KEY, deploymentId: "test", clock: () => Date.now() + 600_000 });
     await assert.rejects(future.submitOperation(AGENT, { protocol_version: PROTOCOL_VERSION, plan_id: plan.id, request_key: key() }), isCode("PLAN_EXPIRED"));
   });

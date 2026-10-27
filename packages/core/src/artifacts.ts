@@ -1,5 +1,5 @@
-import { sha256Bytes } from "@vap/protocol";
-import type { ArtifactRef } from "@vap/protocol";
+import { sha256Bytes } from "@verified-action-protocol/protocol";
+import type { ArtifactRef } from "@verified-action-protocol/protocol";
 import { redactString } from "./redact.js";
 
 /**

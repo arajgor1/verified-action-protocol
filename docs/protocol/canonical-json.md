@@ -1,6 +1,6 @@
 # Canonical JSON and digests
 
-Digests are computed over a canonical JSON encoding (`canonicalize` in `@vap/protocol`):
+Digests are computed over a canonical JSON encoding (`canonicalize` in `@verified-action-protocol/protocol`):
 
 - object keys sorted by UTF-16 code unit order (as in RFC 8785 / JCS);
 - no insignificant whitespace;

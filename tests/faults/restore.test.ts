@@ -2,9 +2,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import pg from "pg";
-import { Coordinator } from "@vap/core";
-import { PROTOCOL_VERSION } from "@vap/protocol";
-import { PgJournal } from "@vap/store-postgres";
+import { Coordinator } from "@verified-action-protocol/core";
+import { PROTOCOL_VERSION } from "@verified-action-protocol/protocol";
+import { PgJournal } from "@verified-action-protocol/store-postgres";
 import { recordScenario, writeReport } from "../helpers/report.ts";
 import { adminUrl, AGENT, DIGEST_KEY, key, ownerCheck, sleep, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

@@ -2,8 +2,8 @@
 // elevation, request limits, SSRF/redirect/traversal (T16) and secret canaries (T15).
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { VapError } from "@vap/protocol";
-import type { Grant } from "@vap/protocol";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { recordScenario, writeReport } from "../helpers/report.ts";
 import { key, ownerCheck, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

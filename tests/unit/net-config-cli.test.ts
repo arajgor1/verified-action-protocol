@@ -4,9 +4,9 @@ import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { buildRegistry, CliAdapter, isBlockedAddress, loadAdaptersConfig, parseOrigin, safeRequest, SafeRequestError, startEgressProxy } from "@vap/adapters";
-import { loadConfig } from "@vap/api";
-import { staticConformance } from "@vap/sdk";
+import { buildRegistry, CliAdapter, isBlockedAddress, loadAdaptersConfig, parseOrigin, safeRequest, SafeRequestError, startEgressProxy } from "@verified-action-protocol/adapters";
+import { loadConfig } from "@verified-action-protocol/api";
+import { staticConformance } from "@verified-action-protocol/sdk";
 import { CONFIG_PATH } from "../helpers/paths.ts";
 
 test("blocked network ranges include metadata, loopback, private and mapped addresses", () => {

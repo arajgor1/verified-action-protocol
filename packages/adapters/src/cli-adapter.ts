@@ -3,9 +3,9 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { cp, lstat, mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
-import { PROTOCOL_VERSION, sha256Digest, VapError } from "@vap/protocol";
-import type { ActionDescriptor, Check, Effect, Operation, Plan, RecoveryMode, SideEffect } from "@vap/protocol";
-import { redactString } from "@vap/core";
+import { PROTOCOL_VERSION, sha256Digest, VapError } from "@verified-action-protocol/protocol";
+import type { ActionDescriptor, Check, Effect, Operation, Plan, RecoveryMode, SideEffect } from "@verified-action-protocol/protocol";
+import { redactString } from "@verified-action-protocol/core";
 import type {
   Adapter,
   AdapterContext,
@@ -18,7 +18,7 @@ import type {
   RecoveryPlanSpec,
   VerifyContext,
   VerifyObservation,
-} from "@vap/core";
+} from "@verified-action-protocol/core";
 
 export type CliArgSpec =
   | { literal: string }

@@ -1,5 +1,5 @@
-import { schemaValidator, sha256Digest, VapError } from "@vap/protocol";
-import type { ActionDescriptor, InfoResponse } from "@vap/protocol";
+import { schemaValidator, sha256Digest, VapError } from "@verified-action-protocol/protocol";
+import type { ActionDescriptor, InfoResponse } from "@verified-action-protocol/protocol";
 import type { Adapter } from "./adapter.js";
 import { strictestTier } from "./policy.js";
 

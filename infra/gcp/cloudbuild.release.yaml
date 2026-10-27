@@ -75,6 +75,14 @@ steps:
         # Packaging outputs: secret classes and owner identifiers in every file of every package.
         for t in reports/packages/*.tgz reports/vap-schemas-0.1.tar.gz; do node scripts/release-hygiene.mjs --content "$$t"; done
 
+  # The exact tarballs above, installed into an empty consumer project with its own HOME and npm
+  # cache: no Playwright or browser binaries by default, the documented SDK example runs, and the
+  # published declarations type-check.
+  - id: consumer-install
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["scripts/consumer-install.sh", "reports/packages", "reports/consumer-install.txt"]
+
   - id: image-runtime
     name: ${_DOCKER}
     args: ["build", "--target", "runtime", "--build-arg", "VAP_BUILD_COMMIT=${_COMMIT_SHA}", "--label", "org.opencontainers.image.revision=${_COMMIT_SHA}", "-t", "${_IMAGE}:${_COMMIT_SHA}", "."]

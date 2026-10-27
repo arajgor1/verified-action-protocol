@@ -6,7 +6,7 @@
 //   VAP_GITHUB_REPOSITORY=owner/repo VAP_GITHUB_APP_ID=... VAP_GITHUB_APP_INSTALLATION_ID=... \
 //   VAP_GITHUB_APP_PRIVATE_KEY=... node demo/ci-failure/cleanup-github.ts [--close] [--only <issue numbers, comma-separated>]
 import "../../scripts/cloud-guard.ts";
-import { appJwt } from "@vap/adapters";
+import { appJwt } from "@verified-action-protocol/adapters";
 
 const repo = process.env.VAP_GITHUB_REPOSITORY ?? "";
 if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) throw new Error("VAP_GITHUB_REPOSITORY must be owner/repo");

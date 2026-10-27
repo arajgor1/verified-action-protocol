@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
-import type { Grant } from "@vap/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { recordProfile, writeReport } from "../helpers/report.ts";
 import { key, sleep, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

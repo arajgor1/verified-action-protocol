@@ -1,5 +1,5 @@
-import { PROTOCOL_VERSION, schemaValidator, sha256Digest, VapError } from "@vap/protocol";
-import type { ActionDescriptor, CapabilityVector, Check, Effect, Operation, Plan, RecoveryMode } from "@vap/protocol";
+import { PROTOCOL_VERSION, schemaValidator, sha256Digest, VapError } from "@verified-action-protocol/protocol";
+import type { ActionDescriptor, CapabilityVector, Check, Effect, Operation, Plan, RecoveryMode } from "@verified-action-protocol/protocol";
 import {
   anyResourceMatch,
   expandTemplate,
@@ -9,7 +9,7 @@ import {
   registerSensitiveValue,
   strictestTier,
   templateHasPlaceholders,
-} from "@vap/core";
+} from "@verified-action-protocol/core";
 import type {
   Adapter,
   AdapterContext,
@@ -22,7 +22,7 @@ import type {
   RecoveryPlanSpec,
   VerifyContext,
   VerifyObservation,
-} from "@vap/core";
+} from "@verified-action-protocol/core";
 import type { ArgSource, HttpActionConfig, HttpAdapterConfig, HttpConnectorConfig, HttpResourceConfig } from "./http-config.js";
 import { HTTP_CONFIG_SCHEMA } from "./http-config.js";
 import { parseOrigin, safeRequest, SafeRequestError } from "./net.js";

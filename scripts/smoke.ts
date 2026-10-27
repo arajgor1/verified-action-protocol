@@ -8,9 +8,9 @@
 //   node scripts/smoke.ts check <op_id>    -> waits for an honest final state
 import "./cloud-guard.ts";
 import { readFileSync } from "node:fs";
-import { VapClient } from "@vap/sdk";
-import { VapError } from "@vap/protocol";
-import type { Operation } from "@vap/protocol";
+import { VapClient } from "@verified-action-protocol/sdk";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Operation } from "@verified-action-protocol/protocol";
 
 const url = process.env.VAP_URL;
 const fixture = process.env.VAP_FIXTURE_URL;

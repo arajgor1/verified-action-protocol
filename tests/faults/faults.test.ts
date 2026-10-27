@@ -1,10 +1,10 @@
 // Mandatory failure scenarios T03-T05, T07-T10, T13, T17, T18 against real PostgreSQL and the fixture.
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { Coordinator } from "@vap/core";
-import type { Journal, JournalTx } from "@vap/core";
-import { PROTOCOL_VERSION, VapError } from "@vap/protocol";
-import type { Grant } from "@vap/protocol";
+import { Coordinator } from "@verified-action-protocol/core";
+import type { Journal, JournalTx } from "@verified-action-protocol/core";
+import { PROTOCOL_VERSION, VapError } from "@verified-action-protocol/protocol";
+import type { Grant } from "@verified-action-protocol/protocol";
 import { recordScenario, writeReport } from "../helpers/report.ts";
 import { AGENT, APPROVER, DIGEST_KEY, key, OPERATOR, ownerCheck, sleep, startHarness } from "../helpers/harness.ts";
 import type { Harness } from "../helpers/harness.ts";

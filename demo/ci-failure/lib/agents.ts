@@ -8,10 +8,10 @@
 // tools and evaluator.
 import { open } from "node:fs/promises";
 import path from "node:path";
-import { redactString } from "@vap/core";
-import { VapError } from "@vap/protocol";
-import type { Check, Grant, Operation } from "@vap/protocol";
-import { demoToken, VapClient } from "@vap/sdk";
+import { redactString } from "@verified-action-protocol/core";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Check, Grant, Operation } from "@verified-action-protocol/protocol";
+import { demoToken, VapClient } from "@verified-action-protocol/sdk";
 import { runTests } from "./run-tests.ts";
 import type { TestRun } from "./run-tests.ts";
 import { ACTION_ID, deriveWorkflowId, requestKeyFor } from "./workflow.ts";

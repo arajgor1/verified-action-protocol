@@ -1,5 +1,5 @@
-import { createRuntime, loadConfig } from "@vap/api";
-import type { Runtime } from "@vap/api";
+import { createRuntime, loadConfig } from "@verified-action-protocol/api";
+import type { Runtime } from "@verified-action-protocol/api";
 
 /**
  * VAP worker entry points.

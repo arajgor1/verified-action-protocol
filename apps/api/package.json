@@ -1,5 +1,5 @@
 {
-  "name": "@vap/api",
+  "name": "@verified-action-protocol/api",
   "version": "0.1.0-rc.1",
   "private": true,
   "description": "VAP HTTP gateway, read-only viewer and runtime wiring",
@@ -9,10 +9,10 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "dependencies": {
-    "@vap/adapters": "0.1.0-rc.1",
-    "@vap/core": "0.1.0-rc.1",
-    "@vap/protocol": "0.1.0-rc.1",
-    "@vap/store-postgres": "0.1.0-rc.1",
+    "@verified-action-protocol/adapters": "0.1.0-rc.1",
+    "@verified-action-protocol/core": "0.1.0-rc.1",
+    "@verified-action-protocol/protocol": "0.1.0-rc.1",
+    "@verified-action-protocol/store-postgres": "0.1.0-rc.1",
     "jose": "6.2.12"
   }
 }

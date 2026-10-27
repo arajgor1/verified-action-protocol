@@ -1,5 +1,5 @@
 {
-  "name": "@vap/protocol",
+  "name": "@verified-action-protocol/protocol",
   "version": "0.1.0-rc.1",
   "description": "VAP 0.1 JSON Schemas, TypeScript types, canonical JSON and error model",
   "license": "Apache-2.0",

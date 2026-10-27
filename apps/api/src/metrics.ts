@@ -1,4 +1,4 @@
-import type { Coordinator } from "@vap/core";
+import type { Coordinator } from "@verified-action-protocol/core";
 
 /**
  * Prometheus-style text metrics. Operation counts by execution and verification status,

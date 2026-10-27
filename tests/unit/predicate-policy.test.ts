@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateGrant, evaluatePredicate, matchesActionPattern, matchesResourcePattern, scopeWithinGrant, strictestTier, validatePredicate } from "@vap/core";
-import type { Grant } from "@vap/protocol";
+import { evaluateGrant, evaluatePredicate, matchesActionPattern, matchesResourcePattern, scopeWithinGrant, strictestTier, validatePredicate } from "@verified-action-protocol/core";
+import type { Grant } from "@verified-action-protocol/protocol";
 
 const facts = { owner: "bob", n: 5, tags: ["a", "b"], nested: { "x/y": 1 }, nil: null };
 

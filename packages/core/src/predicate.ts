@@ -1,5 +1,5 @@
-import { canonicalize } from "@vap/protocol";
-import type { Predicate } from "@vap/protocol";
+import { canonicalize } from "@verified-action-protocol/protocol";
+import type { Predicate } from "@verified-action-protocol/protocol";
 
 export const MAX_PREDICATE_DEPTH = 4;
 

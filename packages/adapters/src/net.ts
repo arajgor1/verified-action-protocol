@@ -2,8 +2,8 @@ import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
-import { VapError } from "@vap/protocol";
-import type { SubmissionCertainty } from "@vap/core";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { SubmissionCertainty } from "@verified-action-protocol/core";
 
 /**
  * SSRF controls for operator-registered HTTP destinations:

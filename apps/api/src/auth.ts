@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { JWTPayload } from "jose";
-import { VapError } from "@vap/protocol";
-import type { Journal, Principal, Role } from "@vap/core";
+import { VapError } from "@verified-action-protocol/protocol";
+import type { Journal, Principal, Role } from "@verified-action-protocol/core";
 
 export interface Authenticator {
   readonly mode: "oidc" | "demo";

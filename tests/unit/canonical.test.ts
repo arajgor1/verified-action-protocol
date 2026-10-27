@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalize, CanonicalJsonError, keyedDigest, newId, sha256Digest } from "@vap/protocol";
+import { canonicalize, CanonicalJsonError, keyedDigest, newId, sha256Digest } from "@verified-action-protocol/protocol";
 
 test("canonical JSON sorts keys by UTF-16 code units and drops whitespace", () => {
   assert.equal(canonicalize({ b: 1, a: [true, null, "x"], é: 2, Z: 3 }), '{"Z":3,"a":[true,null,"x"],"b":1,"é":2}');

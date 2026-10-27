@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildReceipt, evaluatePlan, evaluateTaskOutcome, operationView } from "@vap/core";
-import type { StoredOperation, StoredPlan } from "@vap/core";
-import { deriveOutcome, EXECUTION_STATUSES, retryGuidance, VERIFICATION_STATUSES } from "@vap/protocol";
-import type { Evidence, Grant, Task } from "@vap/protocol";
+import { buildReceipt, evaluatePlan, evaluateTaskOutcome, operationView } from "@verified-action-protocol/core";
+import type { StoredOperation, StoredPlan } from "@verified-action-protocol/core";
+import { deriveOutcome, EXECUTION_STATUSES, retryGuidance, VERIFICATION_STATUSES } from "@verified-action-protocol/protocol";
+import type { Evidence, Grant, Task } from "@verified-action-protocol/protocol";
 
 test("outcome derivation never shows unverified or failed verification as verified", () => {
   for (const e of EXECUTION_STATUSES) {
