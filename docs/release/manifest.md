@@ -23,4 +23,28 @@ fails unless:
 
 ## Manifest check result
 
-Pending: recorded when the check runs on the documentation commit.
+Cloud Build `8f36d50e-1dae-44b6-9f67-683eb0f92bc5`, on branch `publication/v0.1.0-rc1`, checked
+validated commit `fb49426` against `555dc81` and passed:
+- the validated commit is an ancestor;
+- 1 commit after it, 10 files changed, 0 outside documentation;
+- 0 documented-command problems;
+- the tree's owner-identifier scan is clean (269 files).
+
+The validated commit's full reachable history was scanned in strict mode by release `6bf1f9da`.
+Every later change is a documentation diff whose resulting tree was scanned.
+
+| Status | Path |
+|---|---|
+| M | README.md |
+| M | docs/acceptance.md |
+| M | docs/release-notes-0.1.0-rc.1.md |
+| M | docs/release/candidate-evidence.md |
+| M | docs/release/managed-staging-results.md |
+| M | docs/release/manifest.md |
+| A | docs/release/publication-plan.md |
+| M | docs/security/browser-image-assessment.md |
+| A | docs/security/runtime-decision-record.md |
+| M | docs/security/vulnerability-dispositions.md |
+
+The commit that adds this section changes only this file. Its check is recorded in the
+operator-only index.
