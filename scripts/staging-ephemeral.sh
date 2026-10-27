@@ -40,7 +40,9 @@ start_pg() {
   docker volume inspect "$VOL" >/dev/null 2>&1 || docker volume create --label "$LABEL" "$VOL" >/dev/null
   docker run -d --network="$NET" --name=vap-pg --label="$LABEL" -e POSTGRES_HOST_AUTH_METHOD=trust \
     -v "$VOL":/var/lib/postgresql/data "$PG_IMAGE" -c max_connections=200 >/dev/null
-  for i in $(seq 1 60); do docker exec vap-pg pg_isready -U postgres >/dev/null 2>&1 && return 0; sleep 1; done
+  # Ready over TCP, as in the other pipelines: on first start the image runs a temporary
+  # socket-only server for initialisation, which answers a socket check and then stops.
+  for i in $(seq 1 60); do docker exec vap-pg pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && return 0; sleep 1; done
   echo "postgres did not become ready" >&2; return 1
 }
 
