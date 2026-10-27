@@ -23,12 +23,14 @@ fails unless:
 
 ## Manifest check result
 
-Cloud Build `aebc1061-3209-4df4-b6f3-fe30373da7c2`, on branch `publication/v0.1.0-rc1`, checked
-validated commit `765be87` against `6dc91c1` and passed:
+Cloud Build `36f57c36-0120-4bfd-9bb0-da23cebd4bff`, on branch `publication/v0.1.0-rc1`, checked
+validated commit `765be87` against `3bd5570` and passed:
 - the validated commit is an ancestor;
-- 1 commit after it, 9 files changed, 0 outside documentation;
+- 3 commits after it, 13 files changed, 0 outside documentation;
 - 0 documented-command problems;
-- the tree's owner-identifier scan is clean (275 files).
+- the tree's owner-identifier scan is clean (276 files).
+
+It superseded check `aebc1061` (against `6dc91c1`).
 
 The validated commit's full reachable history was scanned in strict mode by release `9fd981db`.
 Every later change is a documentation diff whose resulting tree was scanned.
@@ -36,11 +38,15 @@ Every later change is a documentation diff whose resulting tree was scanned.
 | Status | Path |
 |---|---|
 | M | docs/acceptance.md |
+| M | docs/deployment-gcp.md |
 | M | docs/release-notes-0.1.0-rc.1.md |
 | M | docs/release/announcement-0.1.0-rc.1.md |
 | M | docs/release/candidate-evidence.md |
+| A | docs/release/managed-gate-identity-plan.md |
 | M | docs/release/managed-staging-results.md |
+| M | docs/release/manifest.md |
 | M | docs/release/publication-plan.md |
+| M | docs/sdk-example.md |
 | M | docs/security/browser-image-assessment.md |
 | M | docs/security/runtime-decision-record.md |
 | M | docs/security/vulnerability-dispositions.md |
