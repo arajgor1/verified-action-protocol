@@ -20,6 +20,13 @@ image `<registry>/vap/vap@sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70
 built from publication candidate `61ed3b2`. All 16 checked steps passed and the Cloud Run
 resources were deleted.
 
+**Applicability to the 0.1.0-rc.1 image.** The release candidate `fb49426` ships runtime image
+`sha256:b7ecf996…`, which was not deployed (no new deployment spend was authorized). Compared file
+by file with the image above (inspection `3319422a`): 178 Playwright files removed, 77 files
+changed (version strings, `zod` 4.6.7, a Debian `tzdata` update), nothing added, and setuid/setgid
+bits cleared. None of these touch the journal, dispatch, verification or reconciliation code, but
+the managed gate has not run on that exact digest; whether to rerun it is an owner decision.
+
 | Requirement | Evidence |
 |---|---|
 | Migrations | job `vap-migrate-staging` ran as `vap-migrator`: 1 migration, `0001_initial` |

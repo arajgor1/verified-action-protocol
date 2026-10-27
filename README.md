@@ -143,7 +143,8 @@ Compatibility is claimed only for the SDK client tested in `tests/mcp`
 ## Inspect
 
 From an environment with the SDK's `vap` CLI (a built checkout; the npm packages are not
-published yet) and access to a deployed API:
+published yet) and access to a deployed API. **Do not install `@vap/*` from npm:** that scope
+belongs to an unrelated publisher, and these packages will be published under a different scope.
 
 ```bash
 vap operation inspect op_... --evidence --events

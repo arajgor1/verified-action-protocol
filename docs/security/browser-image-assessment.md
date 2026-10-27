@@ -7,12 +7,12 @@ pending.** Until it is accepted, the browser adapter and the worker-browser imag
 
 ## Evidence
 
-Cloud Build `e333db2c-18cb-472b-bf3c-45e15f49dc41` (`bash scripts/vap-cloud.sh browser-linkage`)
+Cloud Build `92b42b7b-1a9c-408d-8f7c-4a1893e25868` (`bash scripts/vap-cloud.sh browser-linkage`)
 ran `scripts/browser-linkage.mjs` inside the worker-browser image pulled by digest
-`sha256:eb1a00875a1c9c039c1a380ee8a7872fa7127554d6e3a47fc946f95cf08a0628`, built from publication
-candidate `61ed3b2` (revision label checked). It used that image's own Playwright 1.63 and
-Chromium build 1243. The same inspection of the two previous builds (`a11ae226`, image
-`sha256:1d2cd1e6…`, and `14de1812`, image `sha256:2eb3847d…`) gave identical linkage results.
+`sha256:918e40056b7f90b38f4fc55d4063dbfc9a9ea1767b57ba5bd2f1e8967e783fc2`, built from publication
+candidate `fb49426` (revision label checked). It used that image's own Playwright 1.63 and
+Chromium build 1243. The same inspection of three previous builds (`e333db2c`, `a11ae226` and
+`14de1812`) gave identical linkage results.
 
 It launched Chromium exactly as the browser adapter does: `headless: true`, with a proxy. It
 rendered a page with text, SVG, a form input and a canvas, and ran `DOMParser` on an XML

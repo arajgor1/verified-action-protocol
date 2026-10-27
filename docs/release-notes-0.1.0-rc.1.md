@@ -53,7 +53,9 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
   (the verifying execution was running when cancelled and the API was restarted), recovery with
   one submission, reconciliation of a lost reply, and journal durability across API and Cloud SQL
   restarts ([results](release/managed-staging-results.md)). One small shared-core instance, one
-  region, no load and no high availability.
+  region, no load and no high availability. This ran on the image of the preceding candidate; the
+  0.1.0-rc.1 image differs by version strings, `zod` 4.6.7, a Debian time-zone data update, the
+  removal of Playwright and cleared setuid bits, and has not itself been deployed.
 - **Release gates:** 161 tests, fault and security suites, an ephemeral staging rehearsal, image
   scans with 0 fixable HIGH/CRITICAL findings, secret and identifier scans of the source, its
   history, the packages and the images ([evidence index](release/candidate-evidence.md)).
@@ -67,9 +69,13 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
 
 ## Security notes
 
-The runtime image has 12 unfixed upstream CVEs (0 fixable). Each is assessed in the
-[decision record](security/runtime-decision-record.md); acceptance of the residual risk is the
-owner's decision and is pending at the time of writing.
+The runtime image has 12 unfixed upstream CVEs and none with a fix available. Each is assessed
+in the [decision record](security/runtime-decision-record.md): 3 are in components absent from
+the image, 6 are unreachable under restrictions the image enforces (no setuid files, non-root
+user, no fstab user mounts) or that operators must keep, and 3 are in tools VAP never runs.
+Acceptance of the residual risk is the owner's decision and is pending at the time of writing.
+The runtime image runs as a non-root user and contains no setuid/setgid files and no browser
+automation code.
 
 ## Limitations
 
