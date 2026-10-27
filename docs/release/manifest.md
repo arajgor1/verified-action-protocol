@@ -23,14 +23,14 @@ fails unless:
 
 ## Manifest check result
 
-Cloud Build `36f57c36-0120-4bfd-9bb0-da23cebd4bff`, on branch `publication/v0.1.0-rc1`, checked
-validated commit `765be87` against `3bd5570` and passed:
+Cloud Build `ffc82a0e-9e84-4064-ba83-b98026816e88`, on branch `publication/v0.1.0-rc1`, checked
+validated commit `765be87` against `56641bc` and passed:
 - the validated commit is an ancestor;
-- 3 commits after it, 13 files changed, 0 outside documentation;
+- 5 commits after it, 13 files changed, 0 outside documentation;
 - 0 documented-command problems;
 - the tree's owner-identifier scan is clean (276 files).
 
-It superseded check `aebc1061` (against `6dc91c1`).
+It superseded checks `36f57c36` (against `3bd5570`) and `aebc1061` (against `6dc91c1`).
 
 The validated commit's full reachable history was scanned in strict mode by release `9fd981db`.
 Every later change is a documentation diff whose resulting tree was scanned.
