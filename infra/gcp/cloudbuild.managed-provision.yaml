@@ -1,6 +1,8 @@
 # Provisions the persistent prerequisites of one managed staging exercise in an existing project
-# (docs/release/managed-staging-plan.md, section 1). Runs as the project's build identity, which
-# deploys afterwards; no deployer account or project-level Run/Scheduler admin role is created.
+# (docs/release/managed-staging-plan.md, section 1). The deploying identity is the build identity
+# running this, or the dedicated deployer named by _DEPLOYER (infra/gcp/gate-identities.sh); it
+# gets act-as on the five runtime accounts and ID-token minting on vap-smoke, each bound on that
+# one account. No project-level Run/Scheduler admin role is created.
 #
 # Creates, each only if missing and each labelled vap-env/vap-run/vap-expires:
 #   - service accounts vap-api, vap-worker, vap-migrator, vap-fixture, vap-scheduler, vap-smoke;
@@ -18,6 +20,7 @@ substitutions:
   _RUN_ID: manual
   _ENVIRONMENT: staging
   _EXPIRES: "0"
+  _DEPLOYER: ""
   _EVIDENCE_BUCKET: set-by-operator
   _GCLOUD: gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf
   _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
@@ -186,11 +189,17 @@ steps:
           gcloud projects add-iam-policy-binding "$$P" --member="serviceAccount:$$(sa $$a)" --role=roles/cloudsql.client --condition="$$COND" >/dev/null
           echo "cloudsql.client $$a, condition: instance vap-$$E only"
         done
-        # The build identity may mint Google-signed ID tokens for vap-smoke only
-        # (iam.serviceAccounts.getOpenIdToken; not Token Creator).
-        BUILDER=$$(gcloud config get-value account 2>/dev/null)
-        gcloud iam service-accounts add-iam-policy-binding "$$(sa vap-smoke)" --member="serviceAccount:$$BUILDER" --role=roles/iam.serviceAccountOpenIdTokenCreator >/dev/null
-        echo "serviceAccountOpenIdTokenCreator for the build identity on vap-smoke only"
+        # The deploying identity (this build identity unless _DEPLOYER names a dedicated one) may
+        # deploy as the runtime accounts and mint Google-signed ID tokens for vap-smoke
+        # (iam.serviceAccounts.getOpenIdToken; not Token Creator), each bound on that account only.
+        DEPLOYER="${_DEPLOYER}"; [ -n "$$DEPLOYER" ] || DEPLOYER=$$(gcloud config get-value account 2>/dev/null)
+        [[ "$$DEPLOYER" =~ ^[a-z0-9-]+@[a-z0-9.-]+[.]gserviceaccount[.]com$$ ]] || { echo "deploying identity is not a service account"; exit 1; }
+        for a in vap-api vap-worker vap-migrator vap-fixture vap-scheduler; do
+          gcloud iam service-accounts add-iam-policy-binding "$$(sa $$a)" --member="serviceAccount:$$DEPLOYER" --role=roles/iam.serviceAccountUser >/dev/null
+          echo "serviceAccountUser for the deploying identity on $$a only"
+        done
+        gcloud iam service-accounts add-iam-policy-binding "$$(sa vap-smoke)" --member="serviceAccount:$$DEPLOYER" --role=roles/iam.serviceAccountOpenIdTokenCreator >/dev/null
+        echo "serviceAccountOpenIdTokenCreator for the deploying identity on vap-smoke only"
         # Discard the admin password: rotate it to a value nobody keeps.
         gcloud sql users set-password postgres --instance="vap-$$E" --password="$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')" >/dev/null
         rm -rf /workspace/.sql

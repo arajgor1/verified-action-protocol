@@ -25,16 +25,35 @@ keys are created or used.
 
 ## Identities
 
-| Identity | Authority (supported path) |
+Two kinds of permission are involved, and they are held by different accounts:
+- **Build and deployment permissions** create, deploy and delete the resources. They are held by
+  the identity a Cloud Build run executes as, only while the pipelines run.
+- **Application runtime permissions** are what the deployed services and jobs hold while they
+  serve. They are held by the six exercise accounts below, each bound on one resource where
+  Google Cloud allows it.
+
+**Build and deployment**
+
+| Identity | Authority |
 |---|---|
 | operator (human) | submits builds; prepares the project once (quickstart section 0) |
-| build identity | the project's default Cloud Build service account; provisions, deploys and tears down (roles in the next section) |
+| build identity (verified runs) | the project's default Cloud Build service account, which in the verified project holds `roles/owner` |
+| `vap-gate-provisioner`, `vap-gate-deployer` (prepared, not yet exercised) | dedicated build identities for the managed gate; see "Dedicated gate identities" |
+
+**Application runtime**
+
+| Identity | Authority |
+|---|---|
 | `vap-api` | Cloud SQL client (instance-conditioned), its two secrets, runs the worker job with overrides (that job only) |
 | `vap-worker` | Cloud SQL client (instance-conditioned), its two secrets; connector credentials only |
 | `vap-migrator` | Cloud SQL client (instance-conditioned) and the migration URL secret |
 | `vap-fixture` | Cloud SQL client (instance-conditioned) and the fixture URL secret (staging only) |
 | `vap-scheduler` | runs the sweeper job (that job only) |
-| `vap-smoke` | invokes the staging API (that service only); the build identity may mint ID tokens for it |
+| `vap-smoke` | invokes the staging API (that service only); the deploying identity may mint ID tokens for it. A test client, not part of a production deployment |
+
+Database roles (created over SQL by `managed-provision`): `vap_runtime` has DML only on the
+journal, `vap_migrator` owns database `vap`, `vap_fixture` owns database `fixture`; none is a
+member of `cloudsqlsuperuser`.
 
 Evidence artifacts of deployed services stay in the PostgreSQL artifact store; no runtime account
 gets a role on the evidence bucket. The unsupported `bootstrap.sh` also defines `vap-ci-submitter`,
@@ -54,7 +73,7 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
 |---|---|
 | APIs | `run`, `artifactregistry`, `sqladmin`, `sql-component`, `secretmanager`, `cloudscheduler`, `iamcredentials`, `cloudresourcemanager` (all `*.googleapis.com`), plus the quickstart's three |
 | Artifact Registry | a Docker repository named `vap` in the build region (`bash scripts/vap-cloud.sh release` pushes the images there) |
-| Build identity roles | what the pipelines' commands need: `roles/iam.serviceAccountAdmin` (create and delete the six exercise accounts), `roles/iam.serviceAccountUser` (deploy as them), `roles/resourcemanager.projectIamAdmin` (the instance-conditioned `cloudsql.client` bindings), `roles/cloudsql.admin`, `roles/secretmanager.admin`, `roles/run.admin`, `roles/cloudscheduler.admin`, `roles/artifactregistry.writer`, `roles/logging.viewer`, and `roles/storage.objectCreator` on the evidence bucket. **The verified run used a build identity with `roles/owner`;** this narrower list is derived from the commands and was not tested on its own. `projectIamAdmin` is powerful: grant it only for the provisioning and teardown runs |
+| Build identity | **The verified runs used the project's default build identity, which holds `roles/owner`.** A narrower setup is prepared but has not run: two dedicated identities, see "Dedicated gate identities" below. An earlier draft of this table listed unconditioned `roles/iam.serviceAccountAdmin`, project-wide `roles/iam.serviceAccountUser` and `roles/resourcemanager.projectIamAdmin` for one identity; each of those lets the holder reach the project's Owner-level identities, so that list was not least privilege and is withdrawn |
 | Organization policy | the synthetic fixture is deployed with `--allow-unauthenticated`; a domain-restricted-sharing policy would block it |
 | Spending | Cloud SQL bills while it exists (about $0.013 an hour at the provisioned size); billing alerts are notifications, not caps |
 
@@ -74,6 +93,37 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
    teardown (or schedule it) by that time. If the listing still shows a just-deleted account
    (IAM listing is eventually consistent), run it again.
 
+## Dedicated gate identities (prepared, not yet exercised)
+
+`infra/gcp/gate-identities.sh create` (run by the project owner with their own credentials)
+creates two build identities so the managed gate does not run as the default build identity.
+Builds run as one of them when `VAP_BUILD_SERVICE_ACCOUNT` names it for `scripts/vap-cloud.sh`.
+The bindings are derived from the pipelines' commands; the run itself is the test, and any
+missing permission will surface as a failed step (the gate's teardown steps still run).
+
+| Identity | Runs | Project-level roles (condition) | Resource-level roles |
+|---|---|---|---|
+| `vap-gate-provisioner` | `managed-provision --deployer vap-gate-deployer@…` | `iam.serviceAccountCreator`; `iam.serviceAccountAdmin` (may only grant `serviceAccountUser` and `serviceAccountOpenIdTokenCreator`); `resourcemanager.projectIamAdmin` (may only grant `cloudsql.client`); `cloudsql.admin`; `secretmanager.admin`; `logging.logWriter` | build bucket: `storage.objectViewer`, `storage.objectCreator` |
+| `vap-gate-deployer` | `deploy`, `managed-teardown` | `run.admin`; `cloudscheduler.admin`; `cloudsql.admin` (instance `vap-<env>` only); `cloudsql.viewer`; `secretmanager.admin` (secrets `vap-<env>-*` only); `secretmanager.secretAccessor` (`vap-<env>-database-url` only); `secretmanager.viewer`; `iam.serviceAccountViewer`; `iam.serviceAccountDeleter`; `resourcemanager.projectIamAdmin` (may only grant `cloudsql.client`); `iam.securityReviewer`; `logging.viewer`; `logging.logWriter` | build bucket: `storage.objectViewer`, `storage.objectCreator`; repository `vap`: `artifactregistry.reader`; granted by provisioning on each account only: `iam.serviceAccountUser` on `vap-api`, `vap-worker`, `vap-migrator`, `vap-fixture`, `vap-scheduler`, and `iam.serviceAccountOpenIdTokenCreator` on `vap-smoke` |
+
+The submitting principal also needs `iam.serviceAccountUser` on each of the two identities
+(granted by the script on those accounts only).
+
+**What this separation prevents, and what it does not.** Neither identity holds Owner, Editor,
+`serviceAccountTokenCreator` or project-wide act-as, and neither can grant itself other project roles. The
+deployer can act only as the five runtime accounts, so it cannot run code as the Owner-level
+default identities. Remaining authority to be aware of:
+- the provisioner's conditioned `serviceAccountAdmin` applies to every service account in the
+  project, so it could grant act-as or ID-token minting on any of them (including the default
+  identities) to anyone. It holds no Run, Scheduler or Cloud Build role with which to use act-as
+  itself. A resource-name condition limiting it to the `vap-*` accounts would close this; whether
+  IAM accepts such a condition on service accounts has not been checked;
+- the deployer can modify or delete any Cloud Run service, job or scheduler job in the project,
+  and delete any service account (`serviceAccountDeleter` has no resource condition);
+- both can read every object in the build bucket, including the evidence prefix;
+- the role-grant conditions (`modifiedGrantsByRole`) and resource conditions fail closed if IAM
+  does not support them for a call: the step is denied rather than allowed.
+
 ## Blank-project bootstrap: excluded from v0.1.0-rc.1
 
 `infra/gcp/bootstrap.sh` (with `infra/gcp/teardown.sh`) has never run from a blank project and is
@@ -90,7 +140,9 @@ its list.
 ## Verify a release image
 
 Release images are referenced by digest. Cloud Build records signed SLSA v1 provenance for each
-(Container Analysis API required). Inspect it before deploying:
+(Container Analysis API required). It names the building project, identity and storage, so for
+v0.1.0-rc.1 it is kept private: it is not published, and an edited copy would no longer verify.
+An operator who builds in their own project can inspect their own provenance before deploying:
 
 ```bash
 gcloud artifacts docker images describe <region>-docker.pkg.dev/<project>/vap/vap@sha256:<digest> --show-provenance

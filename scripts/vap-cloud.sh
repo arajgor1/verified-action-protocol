@@ -12,17 +12,19 @@
 #   bash scripts/vap-cloud.sh manifest --tested <sha> --images <ref@sha256:...+ref@sha256:...> [--commit <final sha>]
 #   bash scripts/vap-cloud.sh browser-linkage --image <registry/path@sha256:...> --image-commit <sha>
 #   bash scripts/vap-cloud.sh staging-rehearsal --image <registry/path@sha256:...> [--commit <sha>]
-#   bash scripts/vap-cloud.sh managed-provision --expires <unix seconds>
+#   bash scripts/vap-cloud.sh managed-provision --expires <unix seconds> [--deployer <service account email>]
 #   bash scripts/vap-cloud.sh deploy --image <registry/path@sha256:...> [--keep]
 #   bash scripts/vap-cloud.sh managed-teardown
 #   bash scripts/vap-cloud.sh cleanup --run <run_id>
 #
 # Requires VAP_GCP_PROJECT, VAP_GCP_REGION and VAP_EVIDENCE_BUCKET from the operator's private
-# configuration. Fails closed when they are missing; there is no local fallback.
+# configuration. Fails closed when they are missing; there is no local fallback. Optional:
+# VAP_BUILD_SERVICE_ACCOUNT (an email) runs the build as that dedicated build identity instead of
+# the project's default one (infra/gcp/gate-identities.sh).
 set -euo pipefail
 
 cmd="${1:-}"; shift || true
-SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; CONFIG="examples/config/adapters.tutorial.json"
+SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; CONFIG="examples/config/adapters.tutorial.json"
 while [ $# -gt 0 ]; do
   case "$1" in
     --suite) SUITE="$2"; shift 2 ;;
@@ -37,6 +39,7 @@ while [ $# -gt 0 ]; do
     --history-ref) HISTREF="$2"; shift 2 ;;
     --strict-history) STRICT=1; shift ;;
     --expires) EXPIRES="$2"; shift 2 ;;
+    --deployer) DEPLOYER="$2"; shift 2 ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -45,6 +48,11 @@ done
 : "${VAP_GCP_REGION:?set VAP_GCP_REGION}"
 : "${VAP_EVIDENCE_BUCKET:?set VAP_EVIDENCE_BUCKET}"
 command -v gcloud >/dev/null || { echo "gcloud is required" >&2; exit 2; }
+SA_FLAG=()
+if [ -n "${VAP_BUILD_SERVICE_ACCOUNT:-}" ]; then
+  [[ "$VAP_BUILD_SERVICE_ACCOUNT" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z0-9.-]+\.iam\.gserviceaccount\.com$ ]] || { echo "VAP_BUILD_SERVICE_ACCOUNT must be a service account email" >&2; exit 2; }
+  SA_FLAG=(--service-account="projects/$VAP_GCP_PROJECT/serviceAccounts/$VAP_BUILD_SERVICE_ACCOUNT")
+fi
 
 COMMIT="${COMMIT:-$(git rev-parse HEAD)}"
 [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || COMMIT="$(git rev-parse "$COMMIT")"
@@ -66,7 +74,7 @@ archive() {
 submit() { # config substitutions
   local id
   id=$(gcloud builds submit "$SRC" --project="$VAP_GCP_PROJECT" --region="$VAP_GCP_REGION" --config="$1" \
-    --substitutions="$2,_EVIDENCE_BUCKET=${VAP_EVIDENCE_BUCKET}" --async --format='value(id)')
+    --substitutions="$2,_EVIDENCE_BUCKET=${VAP_EVIDENCE_BUCKET}" ${SA_FLAG[@]+"${SA_FLAG[@]}"} --async --format='value(id)')
   echo "Cloud Build $id (run $RUN_ID, commit $COMMIT)"
   # Follow the build by polling its status (live log streaming needs extra Python modules in
   # gcloud), then print the full log from Cloud Logging, where the pipelines write it. The console
@@ -114,7 +122,8 @@ case "$cmd" in
     archive; submit infra/gcp/cloudbuild.staging-rehearsal.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE" ;;
   managed-provision)
     [[ "$EXPIRES" =~ ^[0-9]{10}$ ]] || { echo "--expires must be the teardown deadline in unix seconds" >&2; exit 2; }
-    archive; submit infra/gcp/cloudbuild.managed-provision.yaml "_RUN_ID=$RUN_ID,_ENVIRONMENT=staging,_EXPIRES=$EXPIRES" ;;
+    [[ -z "$DEPLOYER" || "$DEPLOYER" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z0-9.-]+\.iam\.gserviceaccount\.com$ ]] || { echo "--deployer must be a service account email" >&2; exit 2; }
+    archive; submit infra/gcp/cloudbuild.managed-provision.yaml "_RUN_ID=$RUN_ID,_ENVIRONMENT=staging,_EXPIRES=$EXPIRES,_DEPLOYER=$DEPLOYER" ;;
   managed-teardown) archive; submit infra/gcp/cloudbuild.managed-teardown.yaml "_RUN_ID=$RUN_ID,_ENVIRONMENT=staging" ;;
   deploy)
     [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "--image must be an immutable digest reference" >&2; exit 2; }
