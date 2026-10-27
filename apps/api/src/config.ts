@@ -82,7 +82,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     evidenceBucket: env.VAP_EVIDENCE_BUCKET ?? null,
     bootstrapOperators: list(env.VAP_BOOTSTRAP_OPERATORS),
     bootstrapApprovers: list(env.VAP_BOOTSTRAP_APPROVERS),
-    buildVersion: env.VAP_BUILD_VERSION ?? "0.1.0",
+    buildVersion: env.VAP_BUILD_VERSION ?? "0.1.0-rc.1",
     buildCommit: env.VAP_BUILD_COMMIT ?? null,
     imageDigest: env.VAP_IMAGE_DIGEST ?? null,
     maxRequestBytes: 256 * 1024,

@@ -1,6 +1,6 @@
 {
   "name": "vap-monorepo",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "private": true,
   "description": "Verified Action Protocol (VAP) v0.1 reference runtime and protocol",
   "license": "Apache-2.0",
@@ -43,6 +43,7 @@
     "@types/node": "24.19.1",
     "@types/pg": "8.23.0",
     "pg": "8.23.1",
+    "playwright": "1.63.0",
     "typescript": "5.9.3"
   },
   "overrides": {

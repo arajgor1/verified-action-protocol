@@ -124,7 +124,7 @@ async function dispatch(client: VapClient, name: string, a: Args): Promise<{ dat
   switch (name) {
     case "vap_info": {
       const info = await client.info();
-      return { data: { ...info, mcp: { bridge: "vap-mcp-stdio/0.1.0", sdk_latest_protocol: LATEST_PROTOCOL_VERSION } }, text: `VAP protocol ${info.protocol_version}, ${info.adapters.reduce((n, x) => n + x.actions.length, 0)} actions` };
+      return { data: { ...info, mcp: { bridge: "vap-mcp-stdio/0.1.0-rc.1", sdk_latest_protocol: LATEST_PROTOCOL_VERSION } }, text: `VAP protocol ${info.protocol_version}, ${info.adapters.reduce((n, x) => n + x.actions.length, 0)} actions` };
     }
     case "vap_task_open": {
       const t = await client.openTask({ goal: s("goal"), grant_id: s("grant_id"), scope: a.scope as never, requirements: a.requirements as never, assumptions: a.assumptions as never, required_checks: a.required_checks as never });
@@ -187,7 +187,7 @@ async function dispatch(client: VapClient, name: string, a: Args): Promise<{ dat
 }
 
 export function createBridge(client: VapClient): Server {
-  const server = new Server({ name: "vap-mcp-stdio", version: "0.1.0" }, { capabilities: { tools: {} } });
+  const server = new Server({ name: "vap-mcp-stdio", version: "0.1.0-rc.1" }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS.map((t) => ({ ...t, inputSchema: t.inputSchema as unknown as { type: "object" } })) }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const name = request.params.name;

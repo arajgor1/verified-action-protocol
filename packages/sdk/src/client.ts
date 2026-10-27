@@ -58,7 +58,7 @@ export class VapClient {
         headers: {
           authorization: `Bearer ${token}`,
           accept: "application/json",
-          "user-agent": this.opts.userAgent ?? "vap-sdk/0.1.0",
+          "user-agent": this.opts.userAgent ?? "vap-sdk/0.1.0-rc.1",
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),

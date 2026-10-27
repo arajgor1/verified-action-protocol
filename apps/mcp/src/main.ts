@@ -10,7 +10,7 @@ if (!url) {
   process.stderr.write("VAP_URL is required\n");
   process.exit(2);
 }
-const client = new VapClient({ baseUrl: url, token: tokenFromEnv(), userAgent: "vap-mcp-stdio/0.1.0" });
+const client = new VapClient({ baseUrl: url, token: tokenFromEnv(), userAgent: "vap-mcp-stdio/0.1.0-rc.1" });
 const server = createBridge(client);
 await server.connect(new StdioServerTransport());
 process.stderr.write(JSON.stringify({ severity: "INFO", message: "vap mcp bridge ready" }) + "\n");

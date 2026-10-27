@@ -1,6 +1,6 @@
 {
   "name": "@vap/api",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "private": true,
   "description": "VAP HTTP gateway, read-only viewer and runtime wiring",
   "license": "Apache-2.0",
@@ -9,10 +9,10 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "dependencies": {
-    "@vap/adapters": "0.1.0",
-    "@vap/core": "0.1.0",
-    "@vap/protocol": "0.1.0",
-    "@vap/store-postgres": "0.1.0",
+    "@vap/adapters": "0.1.0-rc.1",
+    "@vap/core": "0.1.0-rc.1",
+    "@vap/protocol": "0.1.0-rc.1",
+    "@vap/store-postgres": "0.1.0-rc.1",
     "jose": "6.2.12"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@vap/store-postgres",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "PostgreSQL journal, outbox, claims and migrations for VAP",
   "license": "Apache-2.0",
   "type": "module",
@@ -10,8 +10,8 @@
   "files": ["dist", "migrations"],
   "bin": { "vap-migrate": "./dist/migrate-cli.js" },
   "dependencies": {
-    "@vap/core": "0.1.0",
-    "@vap/protocol": "0.1.0",
+    "@vap/core": "0.1.0-rc.1",
+    "@vap/protocol": "0.1.0-rc.1",
     "pg": "8.23.1"
   }
 }

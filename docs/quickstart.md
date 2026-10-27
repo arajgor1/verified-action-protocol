@@ -1,5 +1,32 @@
 # Cloud quickstart
 
+## Supported installation path (v0.1.0-rc.1)
+
+The supported path is a **preconfigured Google Cloud project**: you (or an administrator) prepare
+the project once with the steps in section 0, then everything runs in Cloud Build. This path was
+verified end to end from a fresh clone (demo, tutorial, integration suite) and, for the optional
+durable deployment, by the managed staging exercise
+([release/managed-staging-results.md](release/managed-staging-results.md)).
+
+**Not supported in this release:** bootstrapping a blank project with `infra/gcp/bootstrap.sh`.
+It has never run from a blank project, and the managed exercise found two defects in it (see
+[deployment-gcp.md](deployment-gcp.md)). The script refuses to run unless
+`VAP_ALLOW_UNSUPPORTED_BOOTSTRAP=1` is set.
+
+**Exact prerequisites for sections 1–3** (demo, tutorial, tests):
+
+| Prerequisite | Detail |
+|---|---|
+| Workstation | `git`, `bash` (Git Bash or WSL on Windows), Google Cloud CLI with the `beta` component |
+| Project | billing enabled; you may spend in it |
+| APIs | `cloudbuild.googleapis.com`, `storage.googleapis.com`, `logging.googleapis.com` |
+| Your roles | `roles/cloudbuild.builds.editor`, `roles/logging.viewer`, and `roles/storage.admin` (or buckets created for you) |
+| Evidence bucket | a private bucket (uniform access, public access prevention) |
+| Build identity | the project's default Cloud Build service account, with `roles/storage.objectCreator` on the evidence bucket. In the verified runs it also held broader project roles; this narrower set is what the pipelines use but was not tested on its own |
+
+Prerequisites for the optional durable deployment are listed in
+[deployment-gcp.md](deployment-gcp.md#managed-staging-in-an-existing-project-supported).
+
 Everything below runs in Google Cloud Build. Your workstation only submits work. It needs `git`,
 `bash` and `gcloud`. The only repository file that runs on it is the dispatcher
 `scripts/vap-cloud.sh`, which archives a commit and submits it. Nothing is installed locally.
@@ -98,8 +125,7 @@ reports status changes, prints the full build log when the build ends, and finis
 `release-out/evidence/<build id>.json`. Reports land in `gs://$VAP_EVIDENCE_BUCKET/<kind>/<run id>/`,
 for example `demo/r20261022…/`.
 
-Nothing here needs `infra/gcp/bootstrap.sh`. Bootstrap is only for the optional durable
-deployment at the end.
+Nothing here needs `infra/gcp/bootstrap.sh`, which is not supported in this release.
 
 ## 1. Run the demo
 
@@ -165,10 +191,11 @@ it. The run id is printed when the command starts.
 
 ## Optional: a durable deployment
 
-The durable profile runs on Cloud Run, Cloud SQL, Secret Manager and Cloud Scheduler. It needs
-the one-time `infra/gcp/bootstrap.sh`, run by an operator with rights to create service
-accounts, IAM bindings and Cloud SQL, and it bills while it exists. See
-[deployment-gcp.md](deployment-gcp.md). With a deployed API:
+The durable profile runs on Cloud Run, Cloud Run jobs, Cloud SQL, Secret Manager and Cloud
+Scheduler, and it bills while it exists. In a preconfigured project it takes three commands
+(`managed-provision`, `deploy`, `managed-teardown`); prerequisites and steps are in
+[deployment-gcp.md](deployment-gcp.md#managed-staging-in-an-existing-project-supported). The deploy
+gate tears its Cloud Run services down itself unless you pass `--keep`. With a kept deployment:
 
 ```bash
 gcloud run services proxy vap-api-staging --region "$VAP_GCP_REGION" --port 8080
@@ -181,5 +208,6 @@ unverified work as success.
 ## Cleanup
 
 The demo, tutorial and test pipelines remove their containers. Delete the evidence bucket when
-you no longer need the reports. For deployments, run `bash infra/gcp/teardown.sh` (see
-deployment-gcp.md); it reports each deleted, retained or failed resource.
+you no longer need the reports. For a durable deployment, run
+`bash scripts/vap-cloud.sh managed-teardown`; it deletes everything the deployment created and
+verifies by listing.

@@ -1,6 +1,6 @@
 {
   "name": "@vap/mcp",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "private": true,
   "description": "VAP stdio MCP bridge: ordinary tools mapped onto the VAP HTTP API",
   "license": "Apache-2.0",
@@ -11,8 +11,8 @@
   "bin": { "vap-mcp": "./dist/main.js" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@vap/protocol": "0.1.0",
-    "@vap/sdk": "0.1.0",
+    "@vap/protocol": "0.1.0-rc.1",
+    "@vap/sdk": "0.1.0-rc.1",
     "zod": "4.6.5"
   }
 }

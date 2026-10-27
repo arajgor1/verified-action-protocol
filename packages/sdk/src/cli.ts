@@ -61,7 +61,7 @@ function client(): VapClient {
   const url = process.env.VAP_URL ?? fileCfg.endpoint;
   if (!url) throw new Error("set VAP_URL (or endpoint in vap.config.json)");
   if (!process.env.VAP_AUDIENCE && fileCfg.audience) process.env.VAP_AUDIENCE = fileCfg.audience;
-  return new VapClient({ baseUrl: url, token: tokenFromEnv(), timeoutMs: fileCfg.timeouts?.request_ms ?? 60_000, userAgent: "vap-cli/0.1.0" });
+  return new VapClient({ baseUrl: url, token: tokenFromEnv(), timeoutMs: fileCfg.timeouts?.request_ms ?? 60_000, userAgent: "vap-cli/0.1.0-rc.1" });
 }
 
 function gcp(): { project: string; region: string; evidenceBucket: string } {

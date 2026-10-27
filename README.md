@@ -1,10 +1,11 @@
 # Verified Action Protocol (VAP) — v0.1 reference runtime
 
-> **Status: release candidate, not yet published.** Unit, integration, browser, demo, release
-> (images, scans, SBOMs, provenance) and image-digest gates have recorded Cloud Build evidence.
-> The managed-service staging deployment and the real-GitHub demo are blocked on owner
-> prerequisites. See [docs/acceptance.md](docs/acceptance.md) for the live gate status.
-> Protocol stability: **experimental (0.1)**. The name "VAP" is provisional.
+> **Status: experimental core release candidate 0.1.0-rc.1, not yet published.** Unit,
+> integration, demo, release (images, scans, SBOMs, provenance), image-digest, ephemeral staging
+> and managed GCP staging gates have recorded Cloud Build evidence. Real-GitHub and Claude-model
+> comparisons have not run. The browser adapter is experimental and outside the supported release.
+> See [docs/acceptance.md](docs/acceptance.md) for the gate status. Protocol stability:
+> **experimental (0.1)**. The name "VAP" is provisional.
 
 Agents that call APIs, browsers and command lines get back ambiguous answers. A timeout may
 mean "nothing happened" or "it happened and the reply was lost". A 200 can arrive before the
@@ -33,8 +34,9 @@ A completed execution with failed verification is never shown as success.
   immutable expiring plans, plan-bound single-use approvals, caller-scoped request keys,
   reconciliation, named-check verification, declared recovery and a sweeper.
 - **Adapters**: a configurable JSON **HTTP** adapter (SSRF-guarded, conditional writes,
-  destination deduplication with sealed lookups), a bounded **browser** adapter (Playwright,
-  reviewed recipes only, explicit vs inferred attribution) and a **registered-command CLI**
+  destination deduplication with sealed lookups), an **experimental** bounded browser adapter
+  (Playwright, reviewed recipes only, explicit vs inferred attribution; disabled by default, not in
+  the supported release, `playwright` is an optional peer dependency) and a **registered-command CLI**
   adapter (argument arrays, workspace containment, process-group cleanup, bounded output, never
   answers prompts).
 - **Integration**: a TypeScript client and adapter SDK, the `vap` CLI, and a **stdio MCP bridge**
@@ -56,8 +58,10 @@ See [docs/limitations.md](docs/limitations.md).
 
 All builds, tests and demos run in cloud containers. Your workstation only submits work.
 
-Do the setup in [docs/quickstart.md](docs/quickstart.md), section "0. Before you start". It
-covers cloning, `gcloud` sign-in, the APIs to enable, permissions and an evidence bucket. Then:
+The supported installation path is a preconfigured Google Cloud project: do the setup in
+[docs/quickstart.md](docs/quickstart.md) (its first section lists the exact prerequisites;
+section "0. Before you start" covers cloning, `gcloud` sign-in, the APIs to enable, permissions
+and an evidence bucket). Blank-project bootstrap is not supported in this release. Then:
 
 ```bash
 export VAP_GCP_PROJECT=<project> VAP_GCP_REGION=<region> VAP_EVIDENCE_BUCKET=<bucket>
@@ -66,8 +70,7 @@ bash scripts/vap-cloud.sh demo
 ```
 
 `scripts/vap-cloud.sh` needs only `git`, `bash` and `gcloud`. It archives the exact commit and
-submits it, so nothing is installed or executed on your workstation. The durable deployment's
-`infra/gcp/bootstrap.sh` is not needed for the demo. Excerpt of the receipts from a recorded run
+submits it, so nothing is installed or executed on your workstation. Excerpt of the receipts from a recorded run
 (demo pipeline, commit `49885af`):
 
 ```text
@@ -81,8 +84,8 @@ operation op_fmWM0SjbezTjVZEOb5lP  outcome=verified
   destination writes for this request key: 1 (no duplicate)
 ```
 
-Full steps: [docs/quickstart.md](docs/quickstart.md). Durable deployment (optional, needs
-bootstrap): [docs/deployment-gcp.md](docs/deployment-gcp.md).
+Full steps: [docs/quickstart.md](docs/quickstart.md). Durable deployment (optional, in a
+preconfigured project): [docs/deployment-gcp.md](docs/deployment-gcp.md).
 
 ## Register your own HTTP action (configuration only)
 

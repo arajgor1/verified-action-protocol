@@ -1,7 +1,7 @@
 {
   "name": "@vap/adapters",
-  "version": "0.1.0",
-  "description": "VAP reference adapters: declarative HTTP, bounded browser (Playwright), registered-command CLI",
+  "version": "0.1.0-rc.1",
+  "description": "VAP reference adapters: declarative HTTP and registered-command CLI; the bounded browser adapter is experimental and needs the optional peer dependency playwright",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,8 +9,13 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "dependencies": {
-    "@vap/core": "0.1.0",
-    "@vap/protocol": "0.1.0",
+    "@vap/core": "0.1.0-rc.1",
+    "@vap/protocol": "0.1.0-rc.1"
+  },
+  "peerDependencies": {
     "playwright": "1.63.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": { "optional": true }
   }
 }

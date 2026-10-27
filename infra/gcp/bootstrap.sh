@@ -17,6 +17,15 @@
 # alerts are not hard caps; delete the instance with teardown.sh when finished.
 set -euo pipefail
 
+# Excluded from the supported v0.1.0-rc.1 release: refuse unless explicitly overridden. The
+# supported path is a preconfigured project plus `scripts/vap-cloud.sh managed-provision`
+# (docs/deployment-gcp.md).
+if [ "${VAP_ALLOW_UNSUPPORTED_BOOTSTRAP:-}" != "1" ]; then
+  echo "bootstrap.sh is unsupported in v0.1.0-rc.1 (untested from a blank project; known gaps above)." >&2
+  echo "Use the preconfigured-project path in docs/deployment-gcp.md, or set VAP_ALLOW_UNSUPPORTED_BOOTSTRAP=1 to run it anyway." >&2
+  exit 2
+fi
+
 : "${VAP_GCP_PROJECT:?set VAP_GCP_PROJECT}"
 : "${VAP_GCP_REGION:?set VAP_GCP_REGION}"
 : "${VAP_EVIDENCE_BUCKET:?set VAP_EVIDENCE_BUCKET}"

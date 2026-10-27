@@ -16,13 +16,17 @@ COPY fixtures ./fixtures
 # Frozen lockfile, no install scripts (Playwright browsers are installed explicitly in the browser target).
 RUN npm ci --ignore-scripts
 RUN npm run build
+# Playwright is a development dependency (and an optional peer of @vap/adapters), so the pruned
+# tree below, and therefore the supported runtime image, carries no browser automation code. The
+# experimental worker-browser target adds back these two lockfile-verified packages.
+RUN mkdir -p /opt/browser-modules && cp -a node_modules/playwright node_modules/playwright-core /opt/browser-modules/
 RUN npm prune --omit=dev --ignore-scripts \
  && find packages apps fixtures -name "*.tsbuildinfo" -delete \
  && find packages apps fixtures -type d -name src -prune -exec rm -rf {} +
 
 # Runtime image for the API, worker jobs, sweeper, migration job and fixture.
 FROM ${NODE_SLIM} AS runtime
-ARG VAP_BUILD_VERSION=0.1.0
+ARG VAP_BUILD_VERSION=0.1.0-rc.1
 ARG VAP_BUILD_COMMIT=unknown
 # Debian security updates are applied on top of the pinned base. tini reaps orphaned children so
 # process-group checks see real survivors, not zombies. The npm CLI (and its bundled packages) is
@@ -56,7 +60,7 @@ CMD ["apps/api/dist/main.js"]
 # slim base as the runtime image; Playwright installs only Chromium's own system dependencies
 # (the full node image shipped hundreds of unused packages with open HIGH/CRITICAL findings).
 FROM ${NODE_SLIM} AS worker-browser
-ARG VAP_BUILD_VERSION=0.1.0
+ARG VAP_BUILD_VERSION=0.1.0-rc.1
 ARG VAP_BUILD_COMMIT=unknown
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
@@ -72,6 +76,7 @@ ENV NODE_ENV=production \
     VAP_ADAPTERS_CONFIG=/app/examples/config/adapters.fixture.json \
     VAP_WORKSPACE_ROOT=/tmp/vap-workspaces
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /opt/browser-modules/ ./node_modules/
 # Browser binaries are pinned by the Playwright version in the lockfile.
 RUN node node_modules/playwright/cli.js install --with-deps chromium && chmod -R a+rX /ms-playwright \
  && rm -rf /var/lib/apt/lists/* \
