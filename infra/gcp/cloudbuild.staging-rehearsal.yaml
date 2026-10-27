@@ -137,9 +137,9 @@ steps:
         set -eo pipefail
         export VAP_SMOKE_SUBJECT=$$(cat smoke-subject)
         # A: the write commits but stays invisible for 25 s, so verification is in progress.
-        VAP_SMOKE_FAULT='{"mode":"delay_visibility","count":1,"delay_ms":25000}' node scripts/smoke.ts start > op-verify.txt 2>> reports/smoke-start.log
+        VAP_SMOKE_FAULT='{"mode":"delay_visibility","count":1,"delay_ms":25000}' node scripts/smoke.ts start > op-verify.txt 2>> reports/smoke-start.log || { tail -40 reports/smoke-start.log; exit 1; }
         # B: the write commits and the reply is dropped, so the outcome is unknown.
-        VAP_SMOKE_FAULT='{"mode":"lost_reply","count":1}' node scripts/smoke.ts start > op-lost.txt 2>> reports/smoke-start.log
+        VAP_SMOKE_FAULT='{"mode":"lost_reply","count":1}' node scripts/smoke.ts start > op-lost.txt 2>> reports/smoke-start.log || { tail -40 reports/smoke-start.log; exit 1; }
         sleep 2
         echo "started $$(cat op-verify.txt) and $$(cat op-lost.txt)"
 
@@ -163,9 +163,9 @@ steps:
         set -eo pipefail
         for i in $$(seq 1 60); do node -e "fetch('http://vap-api:8080/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && break; sleep 1; done
         # Journal survival: the operation completed before the crash is still there and verified.
-        node scripts/smoke.ts check $$(cat op-basic.txt) 2> reports/check-basic.log
-        node scripts/smoke.ts check $$(cat op-verify.txt) 2> reports/check-verify.log
-        node scripts/smoke.ts check $$(cat op-lost.txt) 2> reports/check-lost.log
+        node scripts/smoke.ts check $$(cat op-basic.txt) 2> reports/check-basic.log || { tail -40 reports/check-basic.log; exit 1; }
+        node scripts/smoke.ts check $$(cat op-verify.txt) 2> reports/check-verify.log || { tail -40 reports/check-verify.log; exit 1; }
+        node scripts/smoke.ts check $$(cat op-lost.txt) 2> reports/check-lost.log || { tail -40 reports/check-lost.log; exit 1; }
         echo "all operations reached an honest final state after the crash"
 
   - id: logs

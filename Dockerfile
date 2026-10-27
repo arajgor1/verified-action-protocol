@@ -16,11 +16,13 @@ COPY fixtures ./fixtures
 # Frozen lockfile, no install scripts (Playwright browsers are installed explicitly in the browser target).
 RUN npm ci --ignore-scripts
 RUN npm run build
-# Playwright is a development dependency (and an optional peer of @vap/adapters), so the pruned
-# tree below, and therefore the supported runtime image, carries no browser automation code. The
-# experimental worker-browser target adds back these two lockfile-verified packages.
+# Playwright is a development dependency and an optional peer of @vap/adapters. npm marks it
+# devOptional, which `prune --omit=dev` keeps, so it is removed explicitly: the supported runtime
+# image carries no browser automation code. The experimental worker-browser target adds back these
+# two lockfile-verified packages.
 RUN mkdir -p /opt/browser-modules && cp -a node_modules/playwright node_modules/playwright-core /opt/browser-modules/
 RUN npm prune --omit=dev --ignore-scripts \
+ && rm -rf node_modules/playwright node_modules/playwright-core node_modules/.bin/playwright node_modules/.bin/playwright-core \
  && find packages apps fixtures -name "*.tsbuildinfo" -delete \
  && find packages apps fixtures -type d -name src -prune -exec rm -rf {} +
 
@@ -30,12 +32,16 @@ ARG VAP_BUILD_VERSION=0.1.0-rc.1
 ARG VAP_BUILD_COMMIT=unknown
 # Debian security updates are applied on top of the pinned base. tini reaps orphaned children so
 # process-group checks see real survivors, not zombies. The npm CLI (and its bundled packages) is
-# removed: the runtime never installs anything.
+# removed: the runtime never installs anything. Setuid and setgid bits are cleared (mount, umount,
+# su, passwd and others): the runtime runs as `node` and never needs them, and without them those
+# binaries cannot raise privileges inside the container (docs/security/runtime-decision-record.md).
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends tini \
  && rm -rf /var/lib/apt/lists/* \
- && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+ && find / -xdev -type f -perm /6000 -exec chmod a-s {} + \
+ && test -z "$(find / -xdev -type f -perm /6000 -print -quit)"
 WORKDIR /app
 ENV NODE_ENV=production \
     VAP_ENV=production \
