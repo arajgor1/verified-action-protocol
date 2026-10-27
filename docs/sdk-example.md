@@ -7,9 +7,10 @@ belongs to an unrelated publisher.
 ## Install
 
 ```bash
-npm install @verified-action-protocol/sdk @verified-action-protocol/adapters
+npm install @verified-action-protocol/sdk@0.1.0-rc.1 @verified-action-protocol/adapters@0.1.0-rc.1
 ```
 
+Release candidates are published under the `next` dist-tag, so name the version (or `@next`).
 Node.js 24 is required. This installs the client, the adapter SDK, the `vap` CLI and the HTTP and
 registered-command adapters, with no browser automation: `playwright` is only an optional peer
 dependency of `@verified-action-protocol/adapters`, npm does not install it, and nothing downloads
@@ -41,5 +42,9 @@ into an empty consumer project, in a fresh directory with its own home directory
 and with registry lookups for the scope blocked so nothing can resolve to another publisher's
 package ([`scripts/consumer-install.sh`](../scripts/consumer-install.sh)). It fails if Playwright,
 its browser cache or Chromium appears, runs the example above, and type-checks
-`typecheck.ts` with `skipLibCheck` off. The client call against a deployed API is not part of
-that gate.
+`typecheck.ts` with `skipLibCheck` off.
+
+That test installs **local tarballs**, not packages from the npm registry, and runs the example
+**offline**: the client call against a deployed API is skipped. Two end-to-end checks remain:
+- E1: a fresh install from the public npm registry, once the packages are published;
+- E2: a live SDK call against the final runtime image deployed on the managed path.

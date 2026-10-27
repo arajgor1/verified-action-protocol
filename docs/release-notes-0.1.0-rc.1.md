@@ -64,8 +64,11 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
 - **Package installation:** the exact release tarballs installed into an empty project in a fresh
   directory with its own npm cache, with registry lookups for the scope blocked: no Playwright,
   browser cache or Chromium installed by default, the documented SDK example ran, and the
-  published TypeScript declarations type-checked with `skipLibCheck` off. This used the
-  tarballs, not the npm registry, because nothing is published yet.
+  published TypeScript declarations type-checked with `skipLibCheck` off. This installed local
+  tarballs, not packages from the npm registry (nothing is published yet), and the example ran
+  offline, with no call to a deployed API. Two checks remain:
+  - a fresh install from the public registry;
+  - a live SDK call against the final image deployed on the managed path.
 - **Release gates:** 161 tests, fault and security suites, an ephemeral staging rehearsal, image
   scans with 0 fixable HIGH/CRITICAL findings, secret and identifier scans of the source, its
   history, the packages and the images ([evidence index](release/candidate-evidence.md)).

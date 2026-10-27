@@ -73,7 +73,7 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
 |---|---|
 | APIs | `run`, `artifactregistry`, `sqladmin`, `sql-component`, `secretmanager`, `cloudscheduler`, `iamcredentials`, `cloudresourcemanager` (all `*.googleapis.com`), plus the quickstart's three |
 | Artifact Registry | a Docker repository named `vap` in the build region (`bash scripts/vap-cloud.sh release` pushes the images there) |
-| Build identity | **The verified runs used the project's default build identity, which holds `roles/owner`.** A narrower setup is prepared but has not run: two dedicated identities, see "Dedicated gate identities" below. An earlier draft of this table listed unconditioned `roles/iam.serviceAccountAdmin`, project-wide `roles/iam.serviceAccountUser` and `roles/resourcemanager.projectIamAdmin` for one identity; each of those lets the holder reach the project's Owner-level identities, so that list was not least privilege and is withdrawn |
+| Build identity | **The verified runs used the project's default build identity, which holds `roles/owner`.** A narrower setup is prepared but has not run: two dedicated identities, see "Dedicated gate identities" below and [release/managed-gate-identity-plan.md](release/managed-gate-identity-plan.md). An earlier draft of this table listed unconditioned `roles/iam.serviceAccountAdmin`, project-wide `roles/iam.serviceAccountUser` and `roles/resourcemanager.projectIamAdmin` for one identity; each of those lets the holder reach the project's Owner-level identities, so that list was not least privilege and is withdrawn |
 | Organization policy | the synthetic fixture is deployed with `--allow-unauthenticated`; a domain-restricted-sharing policy would block it |
 | Spending | Cloud SQL bills while it exists (about $0.013 an hour at the provisioned size); billing alerts are notifications, not caps |
 
@@ -94,6 +94,14 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
    (IAM listing is eventually consistent), run it again.
 
 ## Dedicated gate identities (prepared, not yet exercised)
+
+**Use this script only in a project dedicated to the exercise.** In a shared project it leaves
+project-wide service-account deletion and act-as administration over every account in the
+project. The revised plan for the final gate
+([release/managed-gate-identity-plan.md](release/managed-gate-identity-plan.md)) recommends
+running the script unchanged in a disposable project that is deleted afterwards (Plan B). It
+also gives an in-project alternative without those two permissions (Plan A). Neither has been
+applied.
 
 `infra/gcp/gate-identities.sh create` (run by the project owner with their own credentials)
 creates two build identities so the managed gate does not run as the default build identity.
@@ -116,8 +124,8 @@ default identities. Remaining authority to be aware of:
 - the provisioner's conditioned `serviceAccountAdmin` applies to every service account in the
   project, so it could grant act-as or ID-token minting on any of them (including the default
   identities) to anyone. It holds no Run, Scheduler or Cloud Build role with which to use act-as
-  itself. A resource-name condition limiting it to the `vap-*` accounts would close this; whether
-  IAM accepts such a condition on service accounts has not been checked;
+  itself. A resource-name condition cannot close this: IAM does not evaluate resource attributes
+  for service accounts. Plan A in the revised plan avoids the role instead;
 - the deployer can modify or delete any Cloud Run service, job or scheduler job in the project,
   and delete any service account (`serviceAccountDeleter` has no resource condition);
 - both can read every object in the build bucket, including the evidence prefix;

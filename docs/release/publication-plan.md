@@ -1,8 +1,10 @@
 # Publication plan and inventory: VAP 0.1.0-rc.1 (prepared, not executed)
 
 Nothing below has been done. Nothing has been pushed, tagged, published or posted, no repository
-visibility has changed, and no residual security risk has been accepted. Each step needs the
-owner's approval (section 6).
+visibility has changed, and no residual security risk has been accepted. Feature work is frozen
+on candidate `765be87`; later commits change documentation only. **No public action happens
+before the owner explicitly authorizes it**, and each public action in section 3 is authorized on
+its own (section 6).
 
 ## 1. Source, image and package mapping
 
@@ -14,7 +16,7 @@ owner's approval (section 6).
 | Runtime image | `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`, built from the validated commit by release `9fd981db`; labels `org.opencontainers.image.revision=765be87…`, `vap.support=supported`; `VAP_BUILD_VERSION=0.1.0-rc.1`; no Playwright; no setuid/setgid files. Only in the owner's private Artifact Registry |
 | npm packages (built by `9fd981db`, not published) | `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters`, all `0.1.0-rc.1`, files `verified-action-protocol-<name>-0.1.0-rc.1.tgz`. `/adapters` lists `playwright` only as an optional peer dependency |
 | Schema bundle | `vap-schemas-0.1.tar.gz` (protocol 0.1 JSON Schemas and examples) |
-| Checksums | `SHA256SUMS` of release `9fd981db` (covers private originals too; a public subset is generated at step 3) |
+| Checksums | `SHA256SUMS` of release `9fd981db` (covers private originals too; a public subset is generated at step R2) |
 | License | Apache-2.0 (`LICENSE`, `NOTICE`); third-party license inventory `public-licenses.json` |
 | SBOMs and scans | `public-sbom-runtime.cdx.json`, `public-sbom-source-workspaces.cdx.json`, `public-scan-runtime.txt`, `public-vulns-all-runtime.json` (sanitized copies) |
 | Provenance | signed SLSA provenance recorded by Cloud Build; it names private identifiers and is **kept private**. Public build provenance is not available for this candidate (stated in the release notes); no edited copy will be published |
@@ -26,116 +28,126 @@ owner's approval (section 6).
 
 | Target | Name | Result | Ownership |
 |---|---|---|---|
-| npm scope | `@verified-action-protocol` | registry: `Scope not found`; no package under it | **not confirmed.** No organization exists, so nobody owns it yet; an unused scope is not a reservation. The owner must create the npm organization and confirm with `npm org ls verified-action-protocol` (logged in as themselves) |
-| why it matters | | the consumer-install gate showed npm looking up the internal dependencies (`core`, `protocol`) by name in the registry; once anything is published, a scope held by someone else would serve those names | publish nothing until the scope is owned |
+| npm scope | `@verified-action-protocol` | registry: `Scope not found`; no package under it | **not confirmed.** "Scope not found" means only that no organization exists. It is neither ownership nor permission to publish, and an unused scope is not a reservation. Creating the npm organization is an **owner action**: the owner creates it and confirms with `npm org ls verified-action-protocol` while logged in as themselves |
+| why it matters | | the consumer-install check showed npm looking up the internal dependencies (`core`, `protocol`) by name in the registry | once anything is published, a scope held by someone else would serve those names. Publish nothing until the owner has confirmed ownership |
 | npm scope | `@vap` | an unrelated publisher's organization (publishes `@vap/core`) | not ours; the docs warn against it |
 | GitHub repository | `arajgor1/verified-action-protocol` | not found (account exists) | the owner's account; free to create |
 | Container image | `ghcr.io/arajgor1/verified-action-protocol` | no public package | under the owner's account once pushed |
 
-## 3. What would become public, and where
+## 3. Preparation and public actions
 
-| # | What | Where (proposed) |
+### Preparation (outward-facing, not public)
+
+Each of these needs the owner's authorization, but nothing becomes public.
+
+| # | Action | Result |
 |---|---|---|
-| P1 | the branch history and tree above | new GitHub repository `github.com/arajgor1/verified-action-protocol`, default branch `main` = `publication/v0.1.0-rc1`; created private, made public at the visibility step |
-| P2 | annotated tag `v0.1.0-rc.1` on the repository-tree commit | same repository |
-| P3 | GitHub **prerelease** `v0.1.0-rc.1`: release notes; assets `vap-schemas-0.1.tar.gz`, the four sanitized `public-*` files and `public-licenses.json`, and a `SHA256SUMS` covering exactly those assets | same repository |
-| P4 | the runtime image, copied by digest (digest unchanged) | `ghcr.io/arajgor1/verified-action-protocol:0.1.0-rc.1` |
-| P5 | the five npm packages `0.1.0-rc.1`, dist-tag `next` | npmjs.com, scope `@verified-action-protocol`, only after ownership is confirmed |
-| P6 | the announcement | channel chosen by the owner; only after a clean install from npm works |
+| R1 | create the GitHub repository **private**; push `publication/v0.1.0-rc1` as `main`; push the annotated tag `v0.1.0-rc.1` on the repository-tree commit | source, history and tag visible only to the owner |
+| R2 | create the GitHub prerelease `v0.1.0-rc.1` as a **draft**, with its assets (the release notes; `vap-schemas-0.1.tar.gz`, the four sanitized `public-*` files and `public-licenses.json`; a `SHA256SUMS` covering exactly those files) | drafts are visible only to people with write access to the repository |
+| R3 | copy the runtime image by digest to `ghcr.io/arajgor1/verified-action-protocol:0.1.0-rc.1` | GitHub Container Registry packages owned by a personal account are private when first pushed |
 
-**Never public in this release:** the worker-browser image, the private Artifact Registry
-repository, the evidence bucket, the operator-only index, build provenance, the private
-development branch and its history.
+### Independently public actions
 
-## 4. Exact publication commands (to run only after approval)
+Each action makes something different public. Each needs its own explicit authorization, and the
+first one needs it before anything is public.
 
-Run from a fresh clone of the local repository, by the owner or with credentials the owner
-supplies to the session at that time (never pasted into chat). `<remote>` is the new repository.
+| # | Public action | What becomes public | Reversible? | Preconditions |
+|---|---|---|---|---|
+| PA1 | **Source visibility:** repository → public | the full history of the branch, the tag, every tracked file (code, docs, this plan with placeholders). Draft releases and the container package stay private | the setting can be reverted, but clones, forks and caches made in the meantime remain | R1; residual-CVE decision (D1); provenance disclosure as written (D6) |
+| PA2 | **Release assets:** publish the draft prerelease | release notes, the listed assets and their `SHA256SUMS` | the release can be deleted; downloaded copies remain | R2 and PA1. A release published while the repository is private becomes public with PA1, so publish the draft only after PA1 |
+| PA3 | **Container visibility:** GHCR package → public | the runtime image `sha256:d79c04bd…` (all its layers and labels) | **no:** GitHub states that a public package cannot be made private again | R3; D1 |
+| PA4 | **npm packages:** publish the five packages `0.1.0-rc.1` with dist-tag `next` | the five tarballs, public immediately | **effectively no:** unpublishing is possible within 72 hours (later only under narrow conditions), and a used `name@version` can never be reused | owner-confirmed scope ownership (D2); D1 |
+| — | Announcement | the text in [announcement-0.1.0-rc.1.md](announcement-0.1.0-rc.1.md) | no | PA1 and PA4 done, and E1 passed (section 4). The owner decides whether E2 is also required |
+
+**Never public in this release:**
+- the worker-browser image;
+- the private Artifact Registry repository and the evidence bucket;
+- the operator-only index and build provenance;
+- the private development branch and its history.
+
+### Exact commands (to run only after the matching authorization)
+
+Run from a fresh clone of the local repository, by the owner, or with credentials the owner
+supplies to the session at that time (never pasted into chat).
 
 ```bash
-# P1, P2: private repository first, then push and tag
+# R1: private repository, branch, tag
 gh repo create arajgor1/verified-action-protocol --private --description "Verified Action Protocol (VAP): experimental execution layer for verified agent actions"
 git remote add publication https://github.com/arajgor1/verified-action-protocol.git
 git push publication publication/v0.1.0-rc1:main
 git tag -a v0.1.0-rc.1 <repository-tree commit> -m "VAP 0.1.0-rc.1 (experimental core release candidate)"
 git push publication v0.1.0-rc.1
 
-# P3: assets from the private evidence location of release 9fd981db (operator index), checked
-# against that release's SHA256SUMS, then a public SHA256SUMS of exactly these files
-mkdir assets && cd assets   # download the files listed in P3 here
+# R2: draft prerelease. Assets come from the private evidence location of release 9fd981db
+# (operator index) and are checked against that release's SHA256SUMS first.
+mkdir assets && cd assets   # download the files listed in R2 here
 grep -E ' (vap-schemas-0\.1\.tar\.gz|public-.*)$' ../SHA256SUMS.release | sha256sum -c -
 sha256sum vap-schemas-0.1.tar.gz public-* > SHA256SUMS
-gh release create v0.1.0-rc.1 --repo arajgor1/verified-action-protocol --prerelease \
+gh release create v0.1.0-rc.1 --repo arajgor1/verified-action-protocol --draft --prerelease \
   --title "VAP 0.1.0-rc.1 (experimental)" --notes-file ../docs/release-notes-0.1.0-rc.1.md \
   vap-schemas-0.1.tar.gz public-* SHA256SUMS
 
-# P4: copy by digest in a Cloud Build step holding a GitHub token with write:packages that the
-# owner stores in Secret Manager; then check the digest is unchanged and make the package public
+# R3: copy by digest, in a Cloud Build step holding a GitHub token with write:packages that the
+# owner stores in Secret Manager; then check that the digest is unchanged
 crane copy <registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849 ghcr.io/arajgor1/verified-action-protocol:0.1.0-rc.1
 crane digest ghcr.io/arajgor1/verified-action-protocol:0.1.0-rc.1   # must print sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849
 
-# P5: after `npm org ls verified-action-protocol` succeeds for the owner; tarballs from 9fd981db,
-# verified with sha256sum -c against its SHA256SUMS first; dependency order
+# PA1: source visibility
+gh repo edit arajgor1/verified-action-protocol --visibility public --accept-visibility-change-consequences
+
+# PA2: release assets
+gh release edit v0.1.0-rc.1 --repo arajgor1/verified-action-protocol --draft=false --prerelease
+
+# PA3: container visibility. On the package's settings page on GitHub, use "Change visibility" to
+# make it public (a web-interface step; irreversible).
+
+# PA4: npm packages, by the owner after `npm org ls verified-action-protocol` succeeds for them.
+# Tarballs from 9fd981db, verified against that release's SHA256SUMS first; dependency order.
+grep -E ' verified-action-protocol-.*\.tgz$' SHA256SUMS.release | sha256sum -c -
 for p in protocol core store-postgres sdk adapters; do
   npm publish --tag next --access public "verified-action-protocol-$p-0.1.0-rc.1.tgz"
 done
-# then, in an empty directory: npm install @verified-action-protocol/sdk @verified-action-protocol/adapters
-# and run examples/sdk/offline-check.mjs (docs/sdk-example.md) before announcing
-
-# visibility, last
-gh repo edit arajgor1/verified-action-protocol --visibility public --accept-visibility-change-consequences
 ```
 
-npm provenance attestations need a supported CI provider (GitHub Actions); packages published
-from a workstation or Cloud Build carry none, consistent with "no public provenance".
+npm provenance attestations need a supported CI provider (GitHub Actions). Packages published
+from a workstation or from Cloud Build carry none, which is consistent with "no public
+provenance".
 
-## 5. Managed gate on the final digest (prepared, not run)
+## 4. Remaining end-to-end checks
 
-Uses dedicated build identities instead of the project's default build identity, which is not
-modified ([../deployment-gcp.md](../deployment-gcp.md), "Dedicated gate identities", lists every
-binding and what each does not prevent). Run from a fresh clone of the branch with the operator's
-`VAP_GCP_PROJECT`, `VAP_GCP_REGION` and `VAP_EVIDENCE_BUCKET`:
+The consumer-install check of release `9fd981db` installed **local tarballs**, with registry
+lookups for the scope blocked. It ran the SDK example **offline**, so the client call was
+skipped. Two end-to-end checks remain. Neither has run, and neither is added as a gate now.
 
-```bash
-# 0. owner, with their own credentials (creates two service accounts and their bindings)
-VAP_GCP_PROJECT=<project> VAP_SUBMITTER=<user:... or serviceAccount:... that submits builds> \
-  bash infra/gcp/gate-identities.sh create
-PROV=vap-gate-provisioner@<project>.iam.gserviceaccount.com
-DEPL=vap-gate-deployer@<project>.iam.gserviceaccount.com
-# 1. provisioning as the provisioner: runtime accounts, Cloud SQL, secrets, scoped bindings
-VAP_BUILD_SERVICE_ACCOUNT=$PROV bash scripts/vap-cloud.sh managed-provision --expires $(( $(date +%s) + 4*3600 )) --deployer $DEPL
-# 2. the gate, as the deployer, on the exact release digest
-VAP_BUILD_SERVICE_ACCOUNT=$DEPL bash scripts/vap-cloud.sh deploy --image <region>-docker.pkg.dev/<project>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849
-# 3. teardown as the deployer (rerun if IAM listing lags); if a missing permission blocks it,
-#    rerun without VAP_BUILD_SERVICE_ACCOUNT, which uses the default build identity unchanged
-VAP_BUILD_SERVICE_ACCOUNT=$DEPL bash scripts/vap-cloud.sh managed-teardown
-# 4. optional: remove the two identities
-VAP_GCP_PROJECT=<project> VAP_SUBMITTER=<same> bash infra/gcp/gate-identities.sh remove
-```
+| # | Check | Needs | How |
+|---|---|---|---|
+| E1 | fresh install from the public npm registry | PA4 | in a fresh container with an empty npm cache, run the documented command `npm install @verified-action-protocol/sdk@0.1.0-rc.1 @verified-action-protocol/adapters@0.1.0-rc.1` ([../sdk-example.md](../sdk-example.md)). Then repeat the consumer-install checks against the result: no Playwright or browser binaries; every `@verified-action-protocol` package resolved from `registry.npmjs.org`; integrity hashes match the published tarballs; the offline example runs; `typecheck.ts` compiles |
+| E2 | live SDK call against the final managed image | a managed deployment of `sha256:d79c04bd…` left running (`deploy --keep`), and an ID token for the API's audience | run `examples/sdk/offline-check.mjs` with `VAP_URL` set, so that `VapClient.info()` reaches the deployed API. No pipeline runs this yet. It would extend the managed window and need its own authorization |
 
-**Build and deployment permissions** are those of the two gate identities, used only during the
-three builds. **Application runtime permissions** are those of the six exercise accounts the
-provisioning creates (`vap-api`, `vap-worker`, `vap-migrator`, `vap-fixture`, `vap-scheduler`,
-`vap-smoke`), each bound on one secret, one job, one service or the one instance; they are
-unchanged from the verified run.
+## 5. Managed gate on the final digest (planned, not run)
 
-**Cost estimate (list prices, us-central1):** about $0.30 for one clean pass: three builds on the
-default machine type (about 40 build-minutes, $0.24, or within the free monthly minutes), Cloud
-SQL db-f1-micro for about 1.5 hours ($0.02), and cents for Cloud Run, Scheduler and Secret
-Manager. Failed attempts that need reruns could bring it to $1–2. Suggested ceiling: $5.
+The identity plan, the exact grants, the removal steps and the bounded spend are in
+[managed-gate-identity-plan.md](managed-gate-identity-plan.md):
+- **Plan B (recommended):** a disposable project, using `infra/gcp/gate-identities.sh` unchanged;
+- **Plan A:** the existing project, without project-wide service-account deletion or act-as
+  administration.
 
-**Authorization this needs:** running `gate-identities.sh` (new service accounts and project IAM
-bindings, a persistent change; the owner runs it or authorizes it), and the deployment spend.
+**Build and deployment permissions** belong to the two gate identities, and are held only while
+the builds run. **Application runtime permissions** belong to the six exercise accounts
+(`vap-api`, `vap-worker`, `vap-migrator`, `vap-fixture`, `vap-scheduler`, `vap-smoke`). Each of
+those is bound on one secret, one job, one service or the one instance, unchanged from the
+verified run.
 
 ## 6. Decisions that require the owner's approval
 
 | # | Decision | Status and recommendation |
 |---|---|---|
-| D1 | Residual risk of the runtime image's 12 unfixed CVEs | **open.** Review the [decision record](../security/runtime-decision-record.md), including its reachability section and the three restrictions the image does not enforce. Nothing is accepted until you say so |
-| D2 | npm scope `@verified-action-protocol` | the rename is done and tested from tarballs; **ownership not confirmed**: create the npm organization, then confirm |
-| D3 | Managed gate on `sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` with the dedicated identities | prepared (section 5); needs the identity creation and the spend authorized |
-| D4–D5 | Repository `arajgor1/verified-action-protocol`, GHCR image name, visibility change, a GitHub token for the image copy | names kept as proposed; tokens are supplied through Secret Manager or the owner's own session, never in chat |
+| D1 | Residual risk of the runtime image's 12 unfixed CVEs | **open.** Three choices, one per category, in the [decision record](../security/runtime-decision-record.md). Nothing is accepted until the owner says so. Precondition for PA1, PA3 and PA4 |
+| D2 | npm scope `@verified-action-protocol` | **owner action.** The rename is done and tested from tarballs. Ownership is not confirmed: the owner creates the organization and confirms it. Precondition for PA4 |
+| D3 | Managed gate on `sha256:d79c04bd…` | planned; choose Plan B or Plan A, and authorize the identity changes and the spend (ceiling $5) |
+| D4–D5 | Names and tokens: repository `arajgor1/verified-action-protocol`, GHCR image name, a GitHub token for the image copy | names kept as proposed. Tokens are supplied through Secret Manager or the owner's own session, never in chat |
 | D6 | Provenance | kept private; disclosed as unavailable in the release notes and announcement |
-| D7 | Tag `v0.1.0-rc.1`, GitHub prerelease | as stated |
-| D8 | Announcement | draft ready; post only after a clean install from npm works |
-| D9 | Default build identity holds `roles/owner` | not modified; the dedicated identities in section 5 are the test of a restricted setup |
+| D7 | Tag `v0.1.0-rc.1`, GitHub prerelease | as stated (R1, R2, PA2) |
+| D8 | Announcement | draft ready. Post only after PA1, PA4 and E1 |
+| D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
+| — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |

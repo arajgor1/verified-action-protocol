@@ -91,8 +91,14 @@ Re-run the inspection whenever the base image or the Dockerfile changes.
 
 ## Owner decision (pending)
 
-| Decision | Status |
-|---|---|
-| Accept "component absent" findings (3) as not affecting the image | pending |
-| Accept "conditionally unreachable" findings (6) with the restrictions above | pending |
-| Accept "present but not used" findings (3) | pending |
+Each category is decided separately. Only the owner's explicit statement records an acceptance.
+Silence, or authorizing another step such as the managed gate, is not acceptance.
+
+| Decision | Choices | Effect of declining | Status |
+|---|---|---|---|
+| "Component absent" findings (3) | accept as not affecting the image, or decline | the image is not published until the scanner stops reporting them (a Debian update or a different base image, which means a new candidate) | pending |
+| "Conditionally unreachable" findings (6) | accept **with** the three deployment restrictions above, or decline | as above; the restrictions the image does not enforce stay with operators either way | pending |
+| "Present but not used" findings (3) | accept, which relies on restriction 2 for `gzip` and `infocmp`, or decline | as above | pending |
+
+PA1 (source visibility), PA3 (container visibility) and PA4 (npm packages) in
+[../release/publication-plan.md](../release/publication-plan.md) wait for these decisions.

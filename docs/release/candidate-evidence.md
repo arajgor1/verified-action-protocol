@@ -46,7 +46,11 @@ the registry; the scope must be owned before anything is published. `npm ls` sho
 Chromium was installed. The `vap` and `vap-migrate` bin entries were installed. The SDK example
 loaded the tutorial configuration (7 actions), found 0 conformance findings and computed the
 canonical digest; it skipped the client call (no deployed API). `typecheck.ts` compiled with
-`skipLibCheck` off and no Playwright installed.
+`skipLibCheck` off and no Playwright installed. **Scope of this check:** it installed local
+tarballs, not packages from the npm registry, and ran the SDK example offline. Two end-to-end
+checks remain, not yet run ([publication-plan.md](publication-plan.md), section 4):
+- E1: a fresh install from the public npm registry;
+- E2: a live SDK call against the final managed image.
 
 **Not rerun on this commit, with the reason:**
 - **Browser linkage:** `92b42b7b` on `fb49426`. The browser image is excluded from the release.
@@ -56,7 +60,7 @@ canonical digest; it skipped the client call (no deployed API). `typecheck.ts` c
   `sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70fe410bc192afe87d6`. Not rerun: it needs
   new deployment spend and new build identities, which need the owner's authorization. The image
   differences are listed in [managed-staging-results.md](managed-staging-results.md); the rerun
-  is prepared in [publication-plan.md](publication-plan.md), section 5.
+  is planned in [managed-gate-identity-plan.md](managed-gate-identity-plan.md).
 - **Clean-room onboarding:** `d97cf09a`, `6fe6bfcb`, `874d389f` on `b85d442`, in a preconfigured
   project; the quickstart's commands are unchanged since.
 

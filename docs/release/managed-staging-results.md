@@ -29,7 +29,7 @@ one by the renamed package directory (`@vap` to `@verified-action-protocol`, 9 f
 recompiled or relabelled files, with identical OS packages (inspection `c1838d77`). None of these
 change the journal, dispatch, verification or reconciliation logic, but the managed gate has not
 run on the exact final digest. A rerun with dedicated restricted build identities is prepared
-([publication-plan.md](publication-plan.md), section 5) and needs the owner's authorization.
+([managed-gate-identity-plan.md](managed-gate-identity-plan.md)) and needs the owner's authorization.
 
 | Requirement | Evidence |
 |---|---|
