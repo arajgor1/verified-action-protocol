@@ -11,9 +11,99 @@ stayed disabled and its image was neither deployed nor published.
 
 **Not established here.** Blank-project onboarding: the project already had Cloud Build,
 Artifact Registry and the evidence bucket, so `bootstrap.sh` and the quickstart's project setup
-remain unverified (acceptance A8). Creating another billed project was not authorized.
+remain unverified (acceptance A8). The later Plan B run used a disposable project, which the
+owner created and prepared by hand, so it does not establish blank-project onboarding either.
 
-## Final candidate run: PASSED
+## Final 0.1.0-rc.1 digest in a disposable project (Plan B, 2026-10-27)
+
+Authorized by the owner: Plan B only ([managed-gate-identity-plan.md](managed-gate-identity-plan.md)),
+a $5 ceiling, one image copy, two full attempts, the live SDK check E2 in the same deployment,
+and session-independent cleanup. No residual risk was accepted.
+
+**Setup:**
+- The owner created a disposable project (`<gate-project>`), linked billing, and granted the
+  operator's dispatch identity Owner on that project only.
+- The gate identities came from `infra/gcp/gate-identities.sh` unchanged from `765be87`.
+- A watchdog was created first: a Cloud Scheduler job that deletes the project at a deadline 6
+  hours after setup, calling Resource Manager as a janitor account holding only
+  `resourcemanager.projectDeleter`.
+
+**Image copy (once).** The copy build `62771f6b` used Docker.
+- The copied tag resolves to
+  `sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`, identical to the
+  release manifest. It was checked before any deployment.
+- The temporary read grant on the existing project's repository existed for about 72 seconds;
+  its removal was confirmed by listing.
+
+| Attempt | Provision | Deploy gate (16 checked steps) | E2: live SDK call | Teardown |
+|---|---|---|---|---|
+| 1 | `c3931405` passed | `11ac6b7a` **PASSED**, all 16 steps | `11091b3e` **FAILED** before any SDK call: minting the `vap-smoke` token with `gcloud auth print-identity-token --impersonate-service-account` failed (error output was suppressed by the check; a defect of the E2 check, not of VAP) | `ad3630cc` passed; nothing left |
+| 2 | `48a1f268` passed | `8d0fce40` **FAILED** at `scheduler-trigger`; later steps skipped by design | `7fac42d8` **PASSED** | `4270bbcf` passed; nothing left |
+
+**Deploy gate, attempt 1 (exact final digest, dedicated identities, no Owner build identity):**
+- migrations and database access controls;
+- access policy (API invocable only by `vap-smoke`; instance-conditioned `cloudsql.client` only);
+- wrong-audience Google token rejected (401);
+- authenticated smoke operation verified;
+- Cloud Scheduler started sweeper executions as `vap-scheduler` (3 succeeded);
+- an operation interrupted while its verification was in flight (the verifying execution was
+  RUNNING when cancelled, and the API was restarted) reached its final state;
+- lost-reply reconciliation;
+- the journal was identical after a Cloud SQL restart (3 operations, 18 events).
+
+**Attempt 2 failure (unresolved; probable cause recorded, not confirmed).**
+- Cloud Scheduler's calls to the Cloud Run Admin API as `vap-scheduler` returned
+  **401 UNAUTHENTICATED** repeatedly from about 22:02 UTC, interleaved with successes.
+- The first successful trigger came at 22:04:15, after the step's 3-minute window. Over the whole
+  run, Scheduler logged 20 attempts with HTTP 200 and 11 with 401, all 401s in attempt 2.
+- Attempt 1 had no 401. In attempt 2, every runtime account had been recreated with the same name
+  about 3.5 minutes after attempt 1's teardown deleted it: deleted 21:32:27–21:32:38 UTC,
+  recreated 21:35:50–21:36:09 UTC. The audit log shows three create calls for `vap-scheduler`.
+- The probable cause is identity propagation for a recreated account name. This was not
+  confirmed, and attempt 2 is a failed gate run.
+
+**E2, attempt 2 (live SDK call against the deployed final image).**
+- The five release tarballs of `9fd981db` (checksums verified) were installed into an empty
+  consumer project, with registry lookups for the scope blocked.
+- A Google-signed ID token for `vap-smoke` was minted through IAM Credentials `generateIdToken`.
+- The documented example `offline-check.mjs` ran with `VAP_URL` set. Its live
+  `VapClient.info()` returned protocol 0.1.
+- `info()` reported `auth_mode` `oidc`, build `0.1.0-rc.1`, commit `765be87`, and image digest
+  `sha256:d79c04bd…`.
+- The same SDK call with a demo token was refused with HTTP 401.
+- **Limitation:** the SDK's `gcloud` token source was answered by a strict shim that returned
+  the token minted in the previous step, because the Node.js container has no gcloud.
+
+**Deviation during setup.** `gate-identities.sh` (765be87) runs `gcloud iam service-accounts
+create` and its repository binding without `--project`. With the dispatch identity's default
+project set to the existing project, it created `vap-gate-provisioner` there before failing.
+- That account had no bindings and no keys, and was deleted about 4 minutes later.
+- The rerun pinned `CLOUDSDK_CORE_PROJECT` to the disposable project.
+- No other resource or binding was created in the existing project; this was checked by listing.
+
+**Cleanup:**
+- Evidence was copied to the private evidence location: 42 report files, sanitized copies of
+  each, and the session logs.
+- The project was deleted by running the watchdog job, which proves the session-independent
+  path. The project went to `DELETE_REQUESTED` within seconds.
+- `DELETE_REQUESTED` means deletion was requested and the project's resources are shut down. It
+  is **not** completed deletion: Google holds the project for 30 days before deleting it
+  permanently.
+- The existing project has no `vap-*` account, no gate binding on its policy or its repository,
+  and no Cloud Run service, Cloud SQL instance or secret.
+
+**Spend (list-price estimate; billing data was not visible to the session):**
+- about 92 build-minutes on the default machine type (about $0.55, or within free build minutes);
+- Cloud SQL for about 1.3 hours (about $0.02);
+- cents for Cloud Run, Scheduler, Artifact Registry and Secret Manager;
+- **under $0.70 in total**, against the $5 ceiling.
+
+**Result.** On the exact final digest, the managed deployment gate passed once (attempt 1) and
+failed once (attempt 2, Scheduler authentication). The live SDK call passed once (attempt 2) and
+failed once (attempt 1, test defect). Each check passed in one of the two deployments, but not
+both in the same one. Both failures are recorded as observed.
+
+## Previous image run (candidate 61ed3b2): PASSED
 
 Cloud Build `8f27612f-6e16-4b0c-b350-89757bae8127` (`bash scripts/vap-cloud.sh deploy`), runtime
 image `<registry>/vap/vap@sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70fe410bc192afe87d6`
@@ -27,9 +117,8 @@ Compared file by file: the first rc.1 image `sha256:b7ecf996…` differed from t
 update) and cleared setuid/setgid bits (inspection `3319422a`); the final image differs from that
 one by the renamed package directory (`@vap` to `@verified-action-protocol`, 9 files) and 120
 recompiled or relabelled files, with identical OS packages (inspection `c1838d77`). None of these
-change the journal, dispatch, verification or reconciliation logic, but the managed gate has not
-run on the exact final digest. A rerun with dedicated restricted build identities is prepared
-([managed-gate-identity-plan.md](managed-gate-identity-plan.md)) and needs the owner's authorization.
+change the journal, dispatch, verification or reconciliation logic. The gate has since run on
+the exact final digest (section above).
 
 | Requirement | Evidence |
 |---|---|

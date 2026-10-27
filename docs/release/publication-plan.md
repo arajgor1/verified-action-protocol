@@ -117,16 +117,18 @@ provenance".
 
 The consumer-install check of release `9fd981db` installed **local tarballs**, with registry
 lookups for the scope blocked. It ran the SDK example **offline**, so the client call was
-skipped. Two end-to-end checks remain. Neither has run, and neither is added as a gate now.
+skipped. Two end-to-end checks were left: E1 has not run; E2 ran during the Plan B managed gate.
 
 | # | Check | Needs | How |
 |---|---|---|---|
 | E1 | fresh install from the public npm registry | PA4 | in a fresh container with an empty npm cache, run the documented command `npm install @verified-action-protocol/sdk@0.1.0-rc.1 @verified-action-protocol/adapters@0.1.0-rc.1` ([../sdk-example.md](../sdk-example.md)). Then repeat the consumer-install checks against the result: no Playwright or browser binaries; every `@verified-action-protocol` package resolved from `registry.npmjs.org`; integrity hashes match the published tarballs; the offline example runs; `typecheck.ts` compiles |
-| E2 | live SDK call against the final managed image | a managed deployment of `sha256:d79c04bd…` left running (`deploy --keep`), and an ID token for the API's audience | run `examples/sdk/offline-check.mjs` with `VAP_URL` set, so that `VapClient.info()` reaches the deployed API. No pipeline runs this yet. It would extend the managed window and need its own authorization |
+| E2 | live SDK call against the final managed image | a managed deployment of `sha256:d79c04bd…` left running (`deploy --keep`), and an ID token for the API's audience | **ran in the Plan B gate.** Passed in attempt 2 (`7fac42d8`): `offline-check.mjs` with `VAP_URL` set, `info()` reporting the exact digest and `oidc`, and a demo token refused. Failed in attempt 1 (`11091b3e`) on the check's own token minting. It used the release tarballs, not the registry; E1 still requires publication ([managed-staging-results.md](managed-staging-results.md)) |
 
-## 5. Managed gate on the final digest (planned, not run)
+## 5. Managed gate on the final digest (Plan B run; mixed result)
 
-The identity plan, the exact grants, the removal steps and the bounded spend are in
+Plan B ran on 2026-10-27, as authorized. The deploy gate passed in attempt 1 and failed in
+attempt 2; results in [managed-staging-results.md](managed-staging-results.md). The identity plan,
+the exact grants, the removal steps and the bounded spend are in
 [managed-gate-identity-plan.md](managed-gate-identity-plan.md):
 - **Plan B (recommended):** a disposable project, using `infra/gcp/gate-identities.sh` unchanged;
 - **Plan A:** the existing project, without project-wide service-account deletion or act-as
@@ -144,7 +146,7 @@ verified run.
 |---|---|---|
 | D1 | Residual risk of the runtime image's 12 unfixed CVEs | **open.** Three choices, one per category, in the [decision record](../security/runtime-decision-record.md). Nothing is accepted until the owner says so. Precondition for PA1, PA3 and PA4 |
 | D2 | npm scope `@verified-action-protocol` | **owner action.** The rename is done and tested from tarballs. Ownership is not confirmed: the owner creates the organization and confirms it. Precondition for PA4 |
-| D3 | Managed gate on `sha256:d79c04bd…` | planned; choose Plan B or Plan A, and authorize the identity changes and the spend (ceiling $5) |
+| D3 | Managed gate on `sha256:d79c04bd…` | **Plan B authorized and run** (Plan A not authorized). Gate PASS in attempt 1 and FAIL in attempt 2 (Scheduler 401, unresolved); E2 FAIL in attempt 1 (test defect) and PASS in attempt 2. Spend estimated under $0.70. Whether this is sufficient is the owner's decision |
 | D4–D5 | Names and tokens: repository `arajgor1/verified-action-protocol`, GHCR image name, a GitHub token for the image copy | names kept as proposed. Tokens are supplied through Secret Manager or the owner's own session, never in chat |
 | D6 | Provenance | kept private; disclosed as unavailable in the release notes and announcement |
 | D7 | Tag `v0.1.0-rc.1`, GitHub prerelease | as stated (R1, R2, PA2) |

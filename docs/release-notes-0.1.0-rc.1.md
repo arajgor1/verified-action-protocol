@@ -59,8 +59,12 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
   restarts ([results](release/managed-staging-results.md)). One small shared-core instance, one
   region, no load and no high availability. This ran on the image of the preceding candidate; the
   0.1.0-rc.1 image differs by version strings, `zod` 4.6.7, a Debian time-zone data update, the
-  removal of Playwright, cleared setuid bits and the package rename, and has not itself been
-  deployed. A rerun on the final image is prepared but has not run.
+  removal of Playwright, cleared setuid bits and the package rename. On the final image, in a
+  disposable project with dedicated build identities and no Owner build identity:
+  - the managed gate passed once and failed once (Cloud Scheduler received 401 from Cloud Run in
+    the second attempt; unresolved);
+  - a live SDK call from the release tarballs against the deployed image passed once and failed
+    once (a defect in the check).
 - **Package installation:** the exact release tarballs installed into an empty project in a fresh
   directory with its own npm cache, with registry lookups for the scope blocked: no Playwright,
   browser cache or Chromium installed by default, the documented SDK example ran, and the

@@ -95,7 +95,9 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
 
 ## Dedicated gate identities (prepared, not yet exercised)
 
-**Use this script only in a project dedicated to the exercise.** In a shared project it leaves
+**Use this script only in a project dedicated to the exercise, and only with
+`CLOUDSDK_CORE_PROJECT` set to that same project.** Some of its commands omit `--project` (a
+defect found in the Plan B run), so without that variable they act on gcloud's active project. In a shared project it leaves
 project-wide service-account deletion and act-as administration over every account in the
 project. The revised plan for the final gate
 ([release/managed-gate-identity-plan.md](release/managed-gate-identity-plan.md)) recommends

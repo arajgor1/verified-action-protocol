@@ -56,11 +56,18 @@ checks remain, not yet run ([publication-plan.md](publication-plan.md), section 
 - **Browser linkage:** `92b42b7b` on `fb49426`. The browser image is excluded from the release.
 - **Demo comparison (180 runs):** `a54bbc0a` on `61ed3b2`. The scripted agents, fault proxy and
   fixture are unchanged apart from import names; the demo tests run in the full suite above.
-- **Managed staging deployment:** `8f27612f` on `61ed3b2`, image
-  `sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70fe410bc192afe87d6`. Not rerun: it needs
-  new deployment spend and new build identities, which need the owner's authorization. The image
-  differences are listed in [managed-staging-results.md](managed-staging-results.md); the rerun
-  is planned in [managed-gate-identity-plan.md](managed-gate-identity-plan.md).
+- **Managed staging deployment on the final digest** (Plan B, a disposable project,
+  [managed-staging-results.md](managed-staging-results.md)). It ran with the dedicated gate
+  identities, not an Owner build identity. Image copy `62771f6b` kept the digest.
+  - Attempt 1: provision `c3931405`, deploy `11ac6b7a` **PASSED** (all 16 steps), E2 `11091b3e`
+    **FAILED** (a defect in the E2 check's token minting; no SDK call was made), teardown
+    `ad3630cc`.
+  - Attempt 2: provision `48a1f268`, deploy `8d0fce40` **FAILED** at `scheduler-trigger` (Cloud
+    Scheduler received 401 from the Cloud Run Admin API; unresolved, probable cause recorded),
+    E2 `7fac42d8` **PASSED**, teardown `4270bbcf`.
+
+  The project is `DELETE_REQUESTED` (deletion requested, not completed). The previous image's run
+  is `8f27612f` on `61ed3b2`.
 - **Clean-room onboarding:** `d97cf09a`, `6fe6bfcb`, `874d389f` on `b85d442`, in a preconfigured
   project; the quickstart's commands are unchanged since.
 
