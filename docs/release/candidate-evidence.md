@@ -14,12 +14,13 @@ Nothing has been published, pushed, tagged or made public.
 
 | Item | Value |
 |---|---|
-| Validated commit | `fb4942620e396f71a4972bbea56e5d7c75fe11e0` on branch `publication/v0.1.0-rc1` (10 commits reachable at validation) |
+| Validated commit | `765be87bc00464c34a5fc41abd416905b8ad9f3f` on branch `publication/v0.1.0-rc1` (16 commits reachable at validation) |
 | Version | `0.1.0-rc.1` (npm packages, runtime build version, MCP bridge, SDK/CLI user agents) |
+| Package names | `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters` (renamed from `@vap/*`, a scope owned by an unrelated publisher). npm scope ownership is **not confirmed** ([publication-plan.md](publication-plan.md), section 2) |
 | Release scope | core: runtime image, npm packages, schema bundle. The browser adapter and worker-browser image are experimental and not part of the release ([../security/browser-image-assessment.md](../security/browser-image-assessment.md)) |
-| Runtime image (supported) | `<registry>/vap/vap@sha256:b7ecf996a9a8c0731cc251b0cd891510a66c40a4f587cb219a38760cea0a9467`, labels `org.opencontainers.image.revision=fb49426…`, `vap.support=supported`; no Playwright; no setuid/setgid files |
-| Worker-browser image (experimental, not published) | `<registry>/vap/vap-worker-browser@sha256:918e40056b7f90b38f4fc55d4063dbfc9a9ea1767b57ba5bd2f1e8967e783fc2`, `vap.support=experimental` |
-| Changes since `61ed3b2` | version `0.1.0-rc.1`; `playwright` an optional peer of `@vap/adapters` and removed from the runtime image; setuid/setgid bits cleared in the runtime image; `zod` 4.6.7 (CVE-2023-54404); `bootstrap.sh` refuses to run (blank-project bootstrap excluded); rehearsal diagnostics; documentation |
+| Runtime image (supported) | `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`, labels `org.opencontainers.image.revision=765be87…`, `vap.support=supported`; no Playwright; no setuid/setgid files |
+| Worker-browser image (experimental, not published) | `<registry>/vap/vap-worker-browser@sha256:dfbd09fd917f09491ed4969970e68a171ce404cdab860dfebca1fd5131c0d850`, `vap.support=experimental` |
+| Changes since `fb49426` | package scope `@verified-action-protocol`; consumer-install gate in the release pipeline and the documented SDK example; the browser adapter's test-only `launch` option no longer exposes Playwright types; dispatcher support for a dedicated build identity and the provisioning `--deployer` option (managed gate, prepared); the staging rehearsal waits for PostgreSQL over TCP; documentation |
 | Later commits | documentation only; see [manifest.md](manifest.md) |
 
 ## Gates on the validated commit
@@ -29,48 +30,74 @@ publication branch, except the inspection (an ad-hoc read-only build against the
 
 | Gate | Cloud Build | Result |
 |---|---|---|
-| Full suite (`test --suite all`) | `4f341fdd-45a3-4c3d-a199-27b5d70cb5de` | PASS: 161 tests, 0 failed, 0 skipped; exit-propagation negative controls; pipeline consistency tests |
-| Release (`release --history-ref publication/v0.1.0-rc1 --strict-history`) | `6bf1f9da-2880-468d-a866-cebf365ab50b` | PASS (details below) |
-| Image gate (runtime digest) | `bb0aba7b-6661-4124-8355-1f1a944f823b` | PASS: revision and support labels; exit propagation; demo and scenarios with the API and worker from the image |
-| Ephemeral staging rehearsal (runtime digest) | `62558572-b448-4c97-b357-f51aaa543564` | PASS ([staging-rehearsal.md](staging-rehearsal.md)) |
-| Browser linkage (worker-browser digest) | `92b42b7b-1a9c-408d-8f7c-4a1893e25868` | PASS ([../security/browser-image-assessment.md](../security/browser-image-assessment.md)) |
-| Runtime image inspection (read-only) | `d56d4bae-822d-4875-9089-a12cabfe30f3`, `3319422a-3cff-453f-b078-fef0bb12f80c` | evidence for the [decision record](../security/runtime-decision-record.md) and the comparison with the managed-gate image (below) |
+| Full suite (`test --suite all`) | `e6408b5a-979a-48fc-838c-e2f785388e38` | PASS: 161 tests, 0 failed, 0 skipped; exit-propagation negative controls; pipeline consistency tests |
+| Release (`release --history-ref publication/v0.1.0-rc1 --strict-history`) | `9fd981db-24f0-4675-b1bd-0363512f7b15` | PASS (details below), including the consumer install |
+| Image gate (runtime digest) | `8f320a3b-87e0-47bf-9c42-eb95b2ddb4d7` | PASS: revision and support labels; exit propagation; demo and scenarios with the API and worker from the image |
+| Ephemeral staging rehearsal (runtime digest) | `9736a54b-b9ba-4674-97f9-f6c555e85a7c` | PASS ([staging-rehearsal.md](staging-rehearsal.md)) |
+| Runtime image inspection (read-only) | `c1838d77-0240-40ef-8eac-a249920b01cd` | same OS packages, security properties and mapped libraries as the first rc.1 image `sha256:b7ecf996…`; differences: 9 files renamed from `@vap` to `@verified-action-protocol`, 120 recompiled or relabelled files ([decision record](../security/runtime-decision-record.md)) |
+
+**Consumer install (release step `consumer-install`, report `consumer-install.txt`):** the five
+tarballs installed with default options into an empty project with its own `HOME` and npm cache.
+Registry lookups for the scope were pointed at an unreachable address: npm tried 9 such lookups
+(for the transitive `core` and `protocol` dependencies), they failed, and every scoped package
+resolved from its local tarball. So, once published, internal dependencies resolve by name from
+the registry; the scope must be owned before anything is published. `npm ls` showed
+`UNMET OPTIONAL DEPENDENCY playwright@1.63.0`; no `playwright`, `playwright-core`, browser cache or
+Chromium was installed. The `vap` and `vap-migrate` bin entries were installed. The SDK example
+loaded the tutorial configuration (7 actions), found 0 conformance findings and computed the
+canonical digest; it skipped the client call (no deployed API). `typecheck.ts` compiled with
+`skipLibCheck` off and no Playwright installed.
 
 **Not rerun on this commit, with the reason:**
+- **Browser linkage:** `92b42b7b` on `fb49426`. The browser image is excluded from the release.
 - **Demo comparison (180 runs):** `a54bbc0a` on `61ed3b2`. The scripted agents, fault proxy and
-  fixture are unchanged since; the demo tests run in the full suite above.
+  fixture are unchanged apart from import names; the demo tests run in the full suite above.
 - **Managed staging deployment:** `8f27612f` on `61ed3b2`, image
-  `sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70fe410bc192afe87d6`. Not rerun because no
-  new deployment spend was authorized. The two images, compared file by file (`3319422a`): 8,551
-  vs 8,373 files; 0 added; 178 removed (all Playwright); 77 changed (version strings in 20
-  application files, `zod` 20 files, a Debian `tzdata` update and package-manager records). The
-  comparison is by content; the cleared setuid/setgid bits are mode changes, measured separately
-  (12 such files before, 0 now). Whether to rerun the managed gate on the rc.1 image is an owner
-  decision ([publication-plan.md](publication-plan.md)).
+  `sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70fe410bc192afe87d6`. Not rerun: it needs
+  new deployment spend and new build identities, which need the owner's authorization. The image
+  differences are listed in [managed-staging-results.md](managed-staging-results.md); the rerun
+  is prepared in [publication-plan.md](publication-plan.md), section 5.
 - **Clean-room onboarding:** `d97cf09a`, `6fe6bfcb`, `874d389f` on `b85d442`, in a preconfigured
   project; the quickstart's commands are unchanged since.
 
-**Release details (`6bf1f9da`):**
+**Release details (`9fd981db`):**
 - Scans for secret classes and owner identifiers found nothing in the source archive, the full
   history reachable from the publication branch (strict mode), every file of the five package
   tarballs and the schema bundle, and the configuration and history of both images.
 - The Chromium launch smoke test passed inside the worker-browser image.
-- Trivy: 0 fixable HIGH/CRITICAL findings and no secrets in either image. Unfixed: 12 CVEs in the
-  runtime image (each in the [decision record](../security/runtime-decision-record.md)), 41 in
-  the worker-browser image ([../security/vulnerability-dispositions.md](../security/vulnerability-dispositions.md)).
+- Trivy: 0 fixable HIGH/CRITICAL findings and no secrets in either image. Unfixed: the same 12 CVEs
+  in the runtime image as before (each in the [decision record](../security/runtime-decision-record.md)),
+  41 in the worker-browser image ([../security/vulnerability-dispositions.md](../security/vulnerability-dispositions.md)).
   Owner acceptance is pending.
-- CycloneDX SBOMs, license inventory, package tarballs `vap-*-0.1.0-rc.1.tgz`, schema bundle.
+- CycloneDX SBOMs, license inventory, package tarballs `verified-action-protocol-*-0.1.0-rc.1.tgz`,
+  schema bundle, consumer-install report.
 - Sanitized `public-*` copies of the SBOMs, scan reports, vulnerability inventories and license
   inventory; the private originals are kept beside them.
-- `SHA256SUMS` lists all 25 artifacts by base name.
-- Signed SLSA provenance from `https://cloudbuild.googleapis.com/GoogleHostedWorker`.
+- `SHA256SUMS` lists all 26 artifacts by base name. Package tarballs and schema bundle:
+
+  | File | SHA-256 |
+  |---|---|
+  | `verified-action-protocol-protocol-0.1.0-rc.1.tgz` | `d3d6031dce3ca433a516b46e3fd1f52904fa5c0a6cd4e1b91a8e4752fe9334eb` |
+  | `verified-action-protocol-core-0.1.0-rc.1.tgz` | `bed28672f1325ac5bb319487faef0a09e8ae8530f84dae66883e0bbd9ae7d184` |
+  | `verified-action-protocol-sdk-0.1.0-rc.1.tgz` | `e31f8f5fde198006b11e417895e79b6621a8c36b2cb8b36923ffcea07dfe810d` |
+  | `verified-action-protocol-store-postgres-0.1.0-rc.1.tgz` | `70bb7de2f588451e9ddeb67fd8f36c58ff58210d16fdc3f9b67ce656f89d93f9` |
+  | `verified-action-protocol-adapters-0.1.0-rc.1.tgz` | `a1c30270f2d7db9bd3c97a5c01aa6283025680755bd96240dd47858ae6f6f427` |
+  | `vap-schemas-0.1.tar.gz` | `4149ae8d4aa463decce5806e8c4678c5b99db134d88a6620263aeb99603b8434` |
+
+- Signed SLSA provenance from `https://cloudbuild.googleapis.com/GoogleHostedWorker`, kept
+  private (it names private identifiers); no public provenance for this candidate.
 
 ## Superseded and non-passing runs (kept for the record)
 
 | Run | Commit | Status |
 |---|---|---|
+| `2d562e8e`, `34420b84`, `35b5b2ff`, `77425596` (inspection) | `47bff9e` | passed (suite, release with consumer install, image gate); superseded by `765be87` |
+| `4ec46176` | `47bff9e` | **FAILED**: staging rehearsal, step `database`, before the VAP image ran: `pg_isready` over the socket succeeded, then `psql` found no socket. Explained by the log and the PostgreSQL image's behaviour (a temporary socket-only server during first-start initialisation); the rehearsal now waits over TCP like every other pipeline (`765be87`). This does **not** explain `91e481f0` below, which failed in a different step |
+| `22a40ffe` | `ae323ba` | passed (full suite); superseded |
+| `c362c236` | `ae323ba` | **FAILED**: release, step `consumer-install`, on a defect in the new check (it counted npm's `UNMET OPTIONAL DEPENDENCY playwright` line as an installation); fixed in `47bff9e` |
+| `4f341fdd`, `6bf1f9da`, `bb0aba7b`, `62558572`, `92b42b7b`, `d56d4bae`, `3319422a`, `8f36d50e` (manifest) | `fb49426` | passed; superseded by `765be87` (package rename) |
 | `1e096bd6`, `2017dc04`, `e724ce2d`, `2e3e5ff1` | `d3008a9` | passed; superseded. The read-only inspection `2c1de6e5` of its runtime image found Playwright still present (npm keeps it as `devOptional`) and 12 setuid/setgid files; both fixed in `fb49426` |
-| `91e481f0` | `d3008a9` | **FAILED**: staging rehearsal, step `start-disrupted-operations`. The reason went to a report that Cloud Build does not upload for failed builds, so it is **unexplained**; the rehearsal now prints the report tail on failure, and it passed on `fb49426` (`62558572`) |
+| `91e481f0` | `d3008a9` | **FAILED, unexplained**: staging rehearsal, step `start-disrupted-operations`. The reason went to a report that Cloud Build does not upload for failed builds. The rehearsal now prints the report tail on failure. Later passes (`62558572`, `9736a54b`) do not explain it; it remains unresolved historical evidence |
 | `919be049` | `2019140` | passed (full suite) |
 | `4ce77bf8` | `2019140` | **FAILED** (correctly): release scan found fixable HIGH CVE-2023-54404 in `zod` 4.6.5, newly listed in the vulnerability database; fixed with `zod` 4.6.7. The same `zod` version is in the earlier images, including the managed-gate image |
 | `602911a6`, `a54bbc0a`, `d983d01e`, `8b0c76f6`, `a4dae530`, `8f27612f`, `e333db2c`, `ad9e97a1` | `61ed3b2` | passed; superseded by `fb49426` (the demo comparison and the managed gate are not rerun; see above) |

@@ -5,9 +5,9 @@ residual risk of each finding below is the owner's decision and is **pending**.
 
 | Item | Value |
 |---|---|
-| Image | `<registry>/vap/vap@sha256:b7ecf996a9a8c0731cc251b0cd891510a66c40a4f587cb219a38760cea0a9467` (supported runtime image), built from `fb49426` |
-| Findings | Trivy HIGH/CRITICAL inventory of release `6bf1f9da`: 12 CVEs, **0 with a fix available**. Debian bookworm base with security updates applied at build time |
-| Evidence | read-only inspection build `d56d4bae` (and `3319422a`) that ran inside the image as its default user: installed package versions (dpkg), files present, setuid/setgid files, `/etc/fstab`, what `node` links (`ldd`) and maps (`/proc/self/maps`) after loading the runtime modules, process identity and capabilities |
+| Image | `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` (supported runtime image), built from `765be87` |
+| Findings | Trivy HIGH/CRITICAL inventory of release `9fd981db`: 12 CVEs, **0 with a fix available** (the same 12 as the previous rc.1 image `sha256:b7ecf996…`, release `6bf1f9da`). Debian bookworm base with security updates applied at build time |
+| Evidence | read-only inspection build `c1838d77` on this image, and `d56d4bae` and `3319422a` on the previous rc.1 image `sha256:b7ecf996…`, each run inside the image as its default user: installed package versions (dpkg), files present, setuid/setgid files, `/etc/fstab`, what `node` links (`ldd`) and maps (`/proc/self/maps`) after loading the runtime modules, process identity and capabilities |
 | Shipped configuration | Dockerfile: runs as `node` (uid 1000); setuid/setgid bits cleared (the build fails if any remain); no npm CLI; no Playwright. Managed deploy pipeline: Cloud Run services and jobs, no privileged mode, no host devices |
 
 **Categories used:**
@@ -17,7 +17,7 @@ residual risk of each finding below is the owner's decision and is **pending**.
 - **Present but not used:** the vulnerable code is present and reachable in principle, but no VAP
   code path runs it.
 
-**Facts measured in the image (inspection `d56d4bae`):**
+**Facts measured in the image** (inspection `d56d4bae` on the previous rc.1 image; `c1838d77` found the same installed package versions, no setuid/setgid files, no Playwright, uid 1000 with empty capability sets, the same libraries mapped by `node`, and no `Archive/Tar` or `perl-modules` in this image; the only file differences are the renamed package directory and recompiled application files):
 - `node` 24.21.0 links only `libdl`, `libstdc++`, `libm`, `libgcc_s`, `libpthread` and `libc`, and
   after loading the API runtime and `pg` it maps nothing else. It uses its bundled zlib
   (`1.3.2.1-motley`) and OpenSSL 3.5.8, not the system libraries.
@@ -45,6 +45,33 @@ residual risk of each finding below is the owner's decision and is **pending**.
 | CVE-2025-69720 (HIGH) | ncurses-bin, ncurses-base, libtinfo6 6.4-4 | stack buffer overflow in the `infocmp` tool (`analyze_string`) on crafted terminfo input | **Present but not used.** `infocmp` is installed; VAP never runs it, and `node` does not link libtinfo | no CLI recipe runs `infocmp` or other terminfo tools on untrusted input | **No** (operator configuration; no shipped recipe runs it) | Accept. Trigger: a Debian fix, or a CLI recipe that runs terminal tools |
 | CVE-2026-41992 (HIGH) | gzip 1.12-1 | global buffer overflow (information disclosure) decompressing crafted LZW then LZH input in one invocation | **Present but not used.** `gzip` is installed; VAP never runs it (`node` uses its bundled zlib) | no CLI recipe runs `gzip` on untrusted input | **No** (operator configuration) | Accept. Trigger: a Debian fix, or a CLI recipe that decompresses untrusted data with `gzip` |
 | CVE-2026-54369 (HIGH) | libacl1 2.3.1-3 | symlink traversal in libacl pathname functions called by a **privileged** process | **Present but not used.** libacl is a dependency of coreutils; no privileged process runs in the container (uid 1000, no capabilities, no setuid files); VAP never calls ACL functions | the container runs as non-root without setuid binaries | **Yes** (`USER node`; setuid cleared) | Accept. Trigger: a Debian fix, or the container running as root |
+
+## Reachability evidence for "present but not used" and "conditionally unreachable"
+
+"Not used" alone does not show that untrusted input cannot reach the code, so the record relies
+on the following facts about how a process in the image can come to run these binaries. They are
+from the source at the release commit (`git grep` for `child_process`, `spawn`, `exec`, and
+`shell: true` across `packages`, `apps` and `fixtures`) and from the inspection above:
+- **The only process-execution path in the API and worker is the registered-command CLI adapter**
+  (`packages/adapters/src/cli-adapter.ts`). It starts only the executable fixed in an
+  operator-registered recipe (an absolute path, or `node` for the runtime's own binary), with
+  `shell: false`, a fixed `PATH` and environment, and arguments that must match the recipe's typed
+  argument schema. An agent or API caller chooses a recipe and argument values; it cannot name an
+  executable, add arguments or reach a shell.
+- The other `child_process` uses are in the SDK: the `vap` CLI, and the `gcloud` token provider,
+  which runs only the fixed command `gcloud` (absent from the image). The API and worker do not
+  depend on the SDK; the MCP bridge does, and runs `gcloud` only when configured with
+  `VAP_TOKEN_SOURCE=gcloud`.
+- The shipped configurations (`examples/config/*.json`) register only `node` with fixture scripts;
+  one fixture script (`spawn-child.mjs`) starts another `node` process. None runs `gzip`,
+  `infocmp`, `tic`, `mount`, `nsenter`, `blkid` or partition tools.
+- `node` decompresses with its bundled zlib (`zlib` module), never the `gzip` binary, and does not
+  link libtinfo, libblkid or libmount.
+
+So reaching `gzip`, `infocmp`, `nsenter` or `blkid` requires either an operator to register a
+recipe that runs them on untrusted input, or code execution inside the container already, which
+gives an attacker more than these CVEs would. The first is a configuration restriction the image
+does not enforce (below); the runtime does not refuse such a recipe.
 
 ## Deployment restrictions that are not enforced by the image
 

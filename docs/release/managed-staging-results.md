@@ -20,12 +20,16 @@ image `<registry>/vap/vap@sha256:be75a82188faf47512e00f00db6d2c452067b5a5f71ef70
 built from publication candidate `61ed3b2`. All 16 checked steps passed and the Cloud Run
 resources were deleted.
 
-**Applicability to the 0.1.0-rc.1 image.** The release candidate `fb49426` ships runtime image
-`sha256:b7ecf996…`, which was not deployed (no new deployment spend was authorized). Compared file
-by file with the image above (inspection `3319422a`): 178 Playwright files removed, 77 files
-changed (version strings, `zod` 4.6.7, a Debian `tzdata` update), nothing added, and setuid/setgid
-bits cleared. None of these touch the journal, dispatch, verification or reconciliation code, but
-the managed gate has not run on that exact digest; whether to rerun it is an owner decision.
+**Applicability to the final 0.1.0-rc.1 image.** The release candidate `765be87` ships runtime
+image `sha256:d79c04bd…`, which has not been deployed (no new deployment spend was authorized).
+Compared file by file: the first rc.1 image `sha256:b7ecf996…` differed from the image above by
+178 removed Playwright files, 77 changed files (version strings, `zod` 4.6.7, a Debian `tzdata`
+update) and cleared setuid/setgid bits (inspection `3319422a`); the final image differs from that
+one by the renamed package directory (`@vap` to `@verified-action-protocol`, 9 files) and 120
+recompiled or relabelled files, with identical OS packages (inspection `c1838d77`). None of these
+change the journal, dispatch, verification or reconciliation logic, but the managed gate has not
+run on the exact final digest. A rerun with dedicated restricted build identities is prepared
+([publication-plan.md](publication-plan.md), section 5) and needs the owner's authorization.
 
 | Requirement | Evidence |
 |---|---|

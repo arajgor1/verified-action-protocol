@@ -1,7 +1,8 @@
 # Announcement draft: VAP 0.1.0-rc.1 (not posted)
 
-> Draft for the owner. Nothing has been posted. Replace `<repository URL>` once the repository is
-> public.
+> Draft for the owner. Nothing has been posted. Post it only after the public installation
+> instructions work (repository public, packages installable from npm under
+> `@verified-action-protocol`). Replace `<repository URL>` then.
 
 ---
 
@@ -27,5 +28,7 @@ What we measured, and how:
 Not done yet: runs against real GitHub, and any comparison with Claude or other models.
 
 This is an **experimental core release candidate**: protocol 0.1 may change, the browser adapter
-is excluded, and installation assumes a preconfigured Google Cloud project. Feedback on the
+is excluded, and installation assumes a preconfigured Google Cloud project. The npm packages are
+`@verified-action-protocol/*` (the `@vap` scope on npm is someone else's). Public build provenance
+is not available for this candidate. Feedback on the
 protocol and adapter contracts is very welcome: <repository URL>

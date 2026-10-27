@@ -18,10 +18,14 @@ guessing. Submitted, completed, verified, partially applied and unknown are kept
   dispositions, canonical JSON and keyed digests, executable examples. Bundle:
   `vap-schemas-0.1.tar.gz`.
 - **Runtime image** (API, worker, sweeper, migration job, synthetic fixture), referenced by
-  digest, with SBOM, license inventory and signed SLSA provenance.
-- **npm packages 0.1.0-rc.1:** protocol, core, SDK (client and `vap` CLI), PostgreSQL store, and
-  adapters (declarative HTTP and registered-command CLI). The published package scope is still to
-  be decided (see the publication plan).
+  digest, with SBOM and license inventory. **Public build provenance is not available for this
+  candidate:** Cloud Build records signed SLSA provenance, but it names the owner's private
+  project, build identity and storage locations, and it cannot be redacted without invalidating
+  its signature, so it is kept private.
+- **npm packages 0.1.0-rc.1** under the `@verified-action-protocol` scope: protocol, core, SDK
+  (client and `vap` CLI), PostgreSQL store, and adapters (declarative HTTP and registered-command
+  CLI). The similarly named `@vap` npm scope belongs to an unrelated publisher; do not install
+  from it. Installation and a first example: [SDK example](sdk-example.md).
 - **Installation path:** a preconfigured Google Cloud project; everything builds and runs in
   Cloud Build ([quickstart](quickstart.md)). The optional durable deployment runs on Cloud Run,
   Cloud Run jobs, Cloud Scheduler, Cloud SQL and Secret Manager ([deployment](deployment-gcp.md)).
@@ -55,7 +59,13 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
   restarts ([results](release/managed-staging-results.md)). One small shared-core instance, one
   region, no load and no high availability. This ran on the image of the preceding candidate; the
   0.1.0-rc.1 image differs by version strings, `zod` 4.6.7, a Debian time-zone data update, the
-  removal of Playwright and cleared setuid bits, and has not itself been deployed.
+  removal of Playwright, cleared setuid bits and the package rename, and has not itself been
+  deployed. A rerun on the final image is prepared but has not run.
+- **Package installation:** the exact release tarballs installed into an empty project in a fresh
+  directory with its own npm cache, with registry lookups for the scope blocked: no Playwright,
+  browser cache or Chromium installed by default, the documented SDK example ran, and the
+  published TypeScript declarations type-checked with `skipLibCheck` off. This used the
+  tarballs, not the npm registry, because nothing is published yet.
 - **Release gates:** 161 tests, fault and security suites, an ephemeral staging rehearsal, image
   scans with 0 fixable HIGH/CRITICAL findings, secret and identifier scans of the source, its
   history, the packages and the images ([evidence index](release/candidate-evidence.md)).

@@ -7,6 +7,10 @@ pending.** Until it is accepted, the browser adapter and the worker-browser imag
 
 ## Evidence
 
+> The final rc.1 candidate `765be87` also builds a worker-browser image (`sha256:dfbd09fd917f…`,
+> private, never published). It was not re-inspected: the browser image is excluded from the
+> release, and its Trivy finding list matches the image assessed below.
+
 Cloud Build `92b42b7b-1a9c-408d-8f7c-4a1893e25868` (`bash scripts/vap-cloud.sh browser-linkage`)
 ran `scripts/browser-linkage.mjs` inside the worker-browser image pulled by digest
 `sha256:918e40056b7f90b38f4fc55d4063dbfc9a9ea1767b57ba5bd2f1e8967e783fc2`, built from publication
