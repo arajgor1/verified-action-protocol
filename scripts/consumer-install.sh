@@ -22,14 +22,20 @@ printf '{ "name": "vap-consumer-check", "version": "0.0.0", "private": true, "ty
 TGZ=("$PKGS"/"$SCOPE"-*.tgz)
 [ "${#TGZ[@]}" -eq 5 ] || { echo "expected 5 package tarballs in $PKGS, found ${#TGZ[@]}"; exit 1; }
 echo "== npm install (default options) of: $(cd "$PKGS" && ls "$SCOPE"-*.tgz | tr '\n' ' ')"
-npm install --no-audit --no-fund "${TGZ[@]}"
+# HTTP log kept so the report shows every registry request (the blocked scope fails closed).
+npm install --no-audit --no-fund --loglevel=http "${TGZ[@]}" 2> "$C/npm-http.log" || { cat "$C/npm-http.log"; exit 1; }
+echo "registry requests: $(grep -c 'npm http fetch' "$C/npm-http.log" || true) (blocked-scope requests: $(grep -c '127.0.0.1:9' "$C/npm-http.log" || true))"
+grep '127.0.0.1:9' "$C/npm-http.log" | head -5 || true
 npm ls --all > "$C/npm-ls.txt" || true
 echo "== installed packages: $(grep -c . "$C/npm-ls.txt") lines of npm ls --all"
 
 echo "== Playwright and browser binaries must be absent"
-if [ -e node_modules/playwright ] || [ -e node_modules/playwright-core ] || grep -qE ' playwright(-core)?@' "$C/npm-ls.txt"; then
+# npm lists the optional peer as "UNMET OPTIONAL DEPENDENCY" when it is not installed.
+installed=$(grep -E ' playwright(-core)?@' "$C/npm-ls.txt" | grep -v 'UNMET OPTIONAL DEPENDENCY' || true)
+if [ -e node_modules/playwright ] || [ -e node_modules/playwright-core ] || [ -n "$installed" ]; then
   echo "FAIL: the default installation brought in Playwright"; grep -E 'playwright' "$C/npm-ls.txt"; exit 1
 fi
+grep -E 'playwright' "$C/npm-ls.txt" || true
 found=$(find "$C" "$HOME" \( -iname 'ms-playwright' -o -iname 'chromium*' -o -iname 'headless_shell' -o -iname 'chrome' \) -print)
 [ -z "$found" ] || { echo "FAIL: browser binaries present: $found"; exit 1; }
 echo "ok: no playwright, playwright-core, ms-playwright cache or Chromium in the consumer"
