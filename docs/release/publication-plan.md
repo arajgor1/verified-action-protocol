@@ -157,7 +157,7 @@ verified run.
 | D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
 | — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |
 | D10 | Successor candidate validation (V1, V2) | **done.** On `82f5bca`: V1 passed (`c0b37f6c`), V2 passed (`b41371cc`, against `0de4720`). The earlier V1 on `4d50c16` failed (test defect) |
-| D11 | Release path | **Option 1 recommended** (the owner's stated preference): experimental core release with the managed-deployment limitation stated; no further deployment gate. Option 2 is not pursued unless the owner asks for it. Confirmation is part of the decision packet, section 8 |
+| D11 | Release path | **confirmed by the owner (2026-10-28): Option 1**, preparing the experimental core release with the limitations of section 8 stated; no further deployment gate. This confirms the release path only: it accepts no residual CVE risk and authorizes no publication or preparation step |
 
 ## 7. Successor candidate and release options
 
@@ -270,13 +270,17 @@ authorization.
 
 ## 8. Decision packet: experimental core release `v0.1.0-rc.1`
 
-Nothing in this section is authorized. It collects what the owner needs to decide Option 1.
+The owner confirmed Option 1 (D11). Nothing else in this section is authorized: no residual risk
+is accepted, and no preparation or public action may start.
 
 ### What would be released
 
 | Item | Value |
 |---|---|
-| Source | validated source commit `82f5bca` plus documentation commits; the tag goes on the tip of `publication/v0.1.0-rc1` |
+| Validated source commit | `82f5bca`: full suite passed (`c0b37f6c`) |
+| Artifact build commit | `765be87`: the artifacts below were built from it |
+| Documentation commit checked by V2 | `0de4720` (`b41371cc`) |
+| Final documentation-only commit | the tip of `publication/v0.1.0-rc1`; not checked by V2; its id is stated with the release ([manifest.md](manifest.md)). The proposed tag goes on it |
 | Artifacts | built from `765be87` by release `9fd981db`: runtime image `sha256:d79c04bd…2c864849`, the five npm tarballs and `vap-schemas-0.1.tar.gz`, checksums in [manifest.md](manifest.md) |
 | Excluded | browser adapter and worker-browser image (experimental), blank-project bootstrap, private development branch, operator index, raw evidence, private provenance |
 | Evidence | full suite on the source commit (`c0b37f6c`, 180 tests); release gates, scans and consumer install on the build commit (`9fd981db` and [candidate-evidence.md](candidate-evidence.md)); manifest check (`b41371cc`) |
@@ -288,6 +292,9 @@ Nothing in this section is authorized. It collects what the owner needs to decid
   Run in the failing attempt. That failure is unresolved and its cause is not established.
 - **Live SDK call:** passed once against the deployed final image, through a test stand-in for the
   SDK's gcloud token source. The SDK's normal token path against a deployed image is not shown.
+- **Real GitHub:** the workflow against a real GitHub repository has not run.
+- **Model comparison:** no model-driven agent was evaluated or compared; the demo agents are
+  scripted policies.
 - **npm registry install (E1):** not run; it needs publication.
 - **Public build provenance:** not available (kept private).
 - **Residual CVEs:** 12 unfixed in the runtime image, with the assessment in the
@@ -304,7 +311,7 @@ Nothing in this section is authorized. It collects what the owner needs to decid
 
 ### Owner decisions, in order
 
-1. **D11:** confirm Option 1 and the limitation text above (or ask for Option 2 instead).
+1. **D11:** done; Option 1 confirmed.
 2. **D1:** the residual-CVE decisions, one per category in the decision record. Required before
    PA1, PA3 and PA4.
 3. **D2:** create the npm organization `verified-action-protocol` and confirm ownership.

@@ -12,7 +12,8 @@ Two commits matter, and they are different:
 | Validated source commit (source and script validation) | `82f5bcab572575a57a35131fb5ff5c73412a3d30` on `publication/v0.1.0-rc1`. Full suite passed in Cloud Build `c0b37f6c` (180 tests, including the 19 cases of `tests/unit/gate-identities.test.ts`) |
 | Artifact build commit (runtime image, npm packages, schema bundle) | `765be87bc00464c34a5fc41abd416905b8ad9f3f`, built, scanned and install-tested by release `9fd981db` |
 | Source difference between the two | `infra/gcp/gate-identities.sh` (project-targeting fix), `tests/unit/gate-identities.test.ts` (its regression test), and documentation. Neither file is in the image build context (the `.dockerignore` allowlist admits only `packages`, `apps`, `fixtures`, `examples` and the root manifests) or in any package's `files`, so the artifacts built from `765be87` are the release artifacts. Their revision label is `765be87` |
-| Final documentation commit | the commit on `publication/v0.1.0-rc1` that records the manifest check below (documentation only) |
+| Documentation commit checked by V2 | `0de4720b1dd715517ec3db350674be04aa000291` (manifest check below) |
+| Final documentation-only commit | the tip of `publication/v0.1.0-rc1`, after `0de4720`. It changes documentation only and was **not** checked by V2. Its id is stated with the release and recorded in the operator-only index; the proposed tag goes on it |
 | Supported artifacts | runtime image `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`; npm packages `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters` `0.1.0-rc.1` (built and install-tested from tarballs, not published; scope ownership not confirmed, see [publication-plan.md](publication-plan.md)); schema bundle `vap-schemas-0.1.tar.gz` |
 | Experimental artifact (not published) | worker-browser image `<registry>/vap/vap-worker-browser@sha256:dfbd09fd917f09491ed4969970e68a171ce404cdab860dfebca1fd5131c0d850` |
 | Artifact checksums | `SHA256SUMS` from release `9fd981db` (26 artifacts, including sanitized `public-*` copies and the consumer-install report); table below |
@@ -71,6 +72,6 @@ scanned by this check.
 | M | docs/release/manifest.md |
 | M | docs/release/publication-plan.md |
 
-The commit that adds this section changes only documentation (this file and the decision packet
-in [publication-plan.md](publication-plan.md), section 8). Its own check is not run; its diff
-against `0de4720` is recorded in the operator-only index.
+The commits after `0de4720` change only documentation (this file and
+[publication-plan.md](publication-plan.md)). No manifest check was run on them; their diff against
+`0de4720` is recorded in the operator-only index.
