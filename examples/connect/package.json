@@ -1,0 +1,9 @@
+{
+  "name": "vap-connect-example",
+  "private": true,
+  "type": "module",
+  "description": "Minimal application that sends one action through VAP and reads the verified receipt",
+  "dependencies": {
+    "@verified-action-protocol/sdk": "0.1.0-rc.1"
+  }
+}

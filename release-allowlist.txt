@@ -45,6 +45,11 @@ examples/config/*.json
 examples/sdk/offline-check.mjs
 examples/sdk/typecheck.ts
 examples/sdk/tsconfig.json
+examples/quickstart/compose.yaml
+examples/quickstart/demo.mjs
+examples/quickstart/initdb.sql
+examples/connect/package.json
+examples/connect/index.mjs
 tests/**/*.ts
 benchmarks/**/*.ts
 benchmarks/**/*.md

@@ -1,0 +1,108 @@
+# Try VAP on one Docker host: the runtime, PostgreSQL and the synthetic issue tracker.
+#
+#   docker compose -f examples/quickstart/compose.yaml run --rm demo      # the recovery demo
+#   docker compose -f examples/quickstart/compose.yaml run --rm connect   # the SDK example
+#   docker compose -f examples/quickstart/compose.yaml down -v            # remove everything
+#
+# Evaluation only. It uses demo authentication (synthetic principals, accepted only on the API
+# container's loopback interface), a digest key generated at startup, automatic migrations and a
+# synthetic destination. No GitHub, model or cloud credentials are used. For a deployment, see
+# docs/deployment-docker.md.
+#
+# The VAP containers follow the deployment restrictions of the security decision record: the
+# image's non-root user, no added capabilities, no privilege escalation, no host devices.
+name: vap-quickstart
+
+x-vap: &vap
+  image: ${VAP_IMAGE:-ghcr.io/verified-action-protocol/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849}
+  user: "1000:1000"
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  postgres:
+    image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+    environment:
+      POSTGRES_DB: vap
+      # Reachable only on this project's private network; nothing is published to the host.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./initdb.sql:/docker-entrypoint-initdb.d/10-fixture.sql:ro
+    healthcheck:
+      # Over TCP: during initialisation the image runs a temporary socket-only server.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      retries: 60
+
+  fixture:
+    <<: *vap
+    command: ["fixtures/issue-tracker/dist/main.js"]
+    environment:
+      FIXTURE_DATABASE_URL: postgres://postgres@postgres:5432/fixture
+      FIXTURE_HOST: 0.0.0.0
+      PORT: "8081"
+      # Fault injection for the demo (lost replies, partial batches). Synthetic data only.
+      FIXTURE_TEST_CONTROLS: "1"
+      FIXTURE_CONTROL_HOST: 0.0.0.0
+      FIXTURE_CONTROL_PORT: "8082"
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 2s
+      retries: 60
+
+  api:
+    <<: *vap
+    command: ["apps/api/dist/main.js"]
+    environment:
+      VAP_ENV: development
+      VAP_AUTH_MODE: demo
+      VAP_HOST: 127.0.0.1
+      VAP_PORT: "8080"
+      VAP_DEPLOYMENT_ID: quickstart
+      VAP_DATABASE_URL: postgres://postgres@postgres:5432/vap
+      VAP_AUTO_MIGRATE: "1"
+      # Allows the private fixture destination; refused when VAP_ENV=production.
+      VAP_ISOLATED_TEST_MODE: "1"
+      VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN: http://fixture:8081
+    depends_on:
+      postgres: {condition: service_healthy}
+      fixture: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 2s
+      retries: 60
+
+  # The demo client shares the API container's network namespace, so it reaches the API on
+  # loopback, where demo authentication is accepted.
+  demo:
+    <<: *vap
+    profiles: [demo]
+    network_mode: service:api
+    command: ["examples/quickstart/demo.mjs"]
+    environment:
+      VAP_URL: http://127.0.0.1:8080
+      FIXTURE_URL: http://fixture:8081
+      FIXTURE_CONTROL_URL: http://fixture:8082
+    volumes:
+      - ./demo.mjs:/app/examples/quickstart/demo.mjs:ro
+    depends_on:
+      api: {condition: service_healthy}
+
+  # Installs the SDK from npm into a throwaway Node container and runs examples/connect.
+  connect:
+    image: node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    profiles: [connect]
+    network_mode: service:api
+    environment:
+      VAP_URL: http://127.0.0.1:8080
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    volumes:
+      - ../connect:/src:ro
+    command: ["sh", "-c", "cp -r /src/. /tmp/app && cd /tmp/app && npm install --no-audit --no-fund --loglevel=error && node index.mjs"]
+    depends_on:
+      api: {condition: service_healthy}

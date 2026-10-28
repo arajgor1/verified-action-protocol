@@ -16,6 +16,7 @@
 #   bash scripts/vap-cloud.sh deploy --image <registry/path@sha256:...> [--keep]
 #   bash scripts/vap-cloud.sh managed-teardown
 #   bash scripts/vap-cloud.sh cleanup --run <run_id>
+#   bash scripts/vap-cloud.sh quickstart [--image <registry/path@sha256:...> --packages <gs://release artifacts>]
 #
 # Requires VAP_GCP_PROJECT, VAP_GCP_REGION and VAP_EVIDENCE_BUCKET from the operator's private
 # configuration. Fails closed when they are missing; there is no local fallback. Optional:
@@ -24,7 +25,7 @@
 set -euo pipefail
 
 cmd="${1:-}"; shift || true
-SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; CONFIG="examples/config/adapters.tutorial.json"
+SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; PACKAGES=""; CONFIG="examples/config/adapters.tutorial.json"
 while [ $# -gt 0 ]; do
   case "$1" in
     --suite) SUITE="$2"; shift 2 ;;
@@ -40,6 +41,7 @@ while [ $# -gt 0 ]; do
     --strict-history) STRICT=1; shift ;;
     --expires) EXPIRES="$2"; shift 2 ;;
     --deployer) DEPLOYER="$2"; shift 2 ;;
+    --packages) PACKAGES="$2"; shift 2 ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -131,5 +133,12 @@ case "$cmd" in
   cleanup)
     [[ "$RUN" =~ ^[a-z0-9]{6,40}$ ]] || { echo "--run must be a VAP run id" >&2; exit 2; }
     archive; submit infra/gcp/cloudbuild.cleanup.yaml "_RUN_ID=$RUN" ;;
-  *) sed -n '2,22p' "$0"; exit 2 ;;
+  quickstart)
+    # Without --image and --packages: the published image and npm packages (public mode).
+    if [ -n "$IMAGE$PACKAGES" ]; then
+      [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "--image must be an immutable digest reference" >&2; exit 2; }
+      [[ "$PACKAGES" =~ ^gs://[a-z0-9_./-]+[a-z0-9]$ ]] || { echo "--packages must be the gs:// directory holding the release tarballs and SHA256SUMS" >&2; exit 2; }
+    fi
+    archive; submit infra/gcp/cloudbuild.quickstart.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE,_PACKAGES=$PACKAGES" ;;
+  *) sed -n '2,23p' "$0"; exit 2 ;;
 esac
