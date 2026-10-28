@@ -153,3 +153,73 @@ verified run.
 | D8 | Announcement | draft ready. Post only after PA1, PA4 and E1 |
 | D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
 | — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |
+| D10 | Successor candidate validation (V1, V2) | prepared; needs authorization (under $0.15) |
+| D11 | Release path | Option 1 (experimental release with the managed-deployment limitation stated) or Option 2 (a bounded validation run first); section 7 |
+
+## 7. Successor candidate and release options
+
+Cloud testing is stopped. No deployment, account recreation or further spend is authorized.
+
+### The successor candidate
+
+- **What changed:** one fix. `infra/gcp/gate-identities.sh` requires an explicit target project,
+  passes it to every project-dependent command in `create` and `remove`, and stops before any
+  change if the project is missing, not ACTIVE, or inconsistent with the target. For `create`, it
+  also checks that the build bucket and the `vap` repository belong to the project.
+- **Test:** `tests/unit/gate-identities.test.ts` runs the script against a fake `gcloud` with a
+  deliberately different active project. It checks that setup and removal target only the
+  supplied project, and that 14 inconsistent or missing inputs stop it before any change.
+- **What is unchanged:**
+  - The changed files are outside the image build context (`.dockerignore` admits only `packages`,
+    `apps`, `fixtures`, `examples` and the root manifests) and outside every package's `files`.
+  - So runtime image `sha256:d79c04bd…` and the tarballs of release `9fd981db`, built from
+    `765be87`, are the artifacts the successor would ship unchanged. Their revision label stays
+    `765be87`, and the release notes must say so.
+- **Validation status: not run.** Nothing was executed locally either.
+
+**Validation needed before it can be the candidate** (owner authorization required):
+
+| # | Check | Command | Estimate |
+|---|---|---|---|
+| V1 | full suite, including the new regression test, on the successor commit | `bash scripts/vap-cloud.sh test --suite all --commit <successor>` | about 4 build-minutes on `E2_HIGHCPU_8`, under $0.10 |
+| V2 | release manifest, with the successor as the validated commit, plus the tree's identifier scan | `bash scripts/vap-cloud.sh manifest --tested <successor> --images <runtime digest>+<browser digest>` | about 2 build-minutes, under $0.05 |
+
+The strict history scan runs only in the release pipeline, which would also rebuild the images.
+It is not proposed: the successor adds two files and documentation, and V2 scans the resulting
+tree.
+
+### Option 1 (owner's stated preference): experimental core release with stated limitations
+
+- **Release:** the successor, after V1 and V2 pass, as `v0.1.0-rc.1`, experimental core scope.
+  Its artifacts are those of `765be87`, as above.
+- **Managed deployment status in the release notes and README:**
+
+  > Managed deployment is experimental. On the final image, in a disposable project with
+  > dedicated build identities, the managed gate passed once and failed once. The failure was an
+  > intermittent authentication failure: Cloud Scheduler received HTTP 401 from Cloud Run. It is
+  > unresolved, and its cause is not established. A live SDK call against the deployed image
+  > passed once and failed once (the failure was a defect in the check). The passing call used a
+  > test stand-in for the SDK's gcloud token source.
+
+- **Still required, each by the owner:**
+  - the residual-CVE decisions (D1);
+  - npm scope ownership (D2);
+  - authorization of each preparation step (R1–R3) and each public action (PA1–PA4).
+- **Not authorized now.**
+
+### Option 2: a separately authorized, bounded deployment validation after the fix
+
+- **Run:** after V1 and V2, one more Plan B run in a new disposable project, using the fixed
+  script and the same digest. Accounts are created there once and never recreated during the
+  run.
+- **Bounds (proposed):**
+  - one attempt (provision, deploy with `--keep`, E2, teardown);
+  - the watchdog from the first run;
+  - deletion of the project afterwards;
+  - a $2 ceiling (one attempt was about $0.35 in the first run).
+- **What it could show:** whether the Scheduler 401 recurs with accounts that were never
+  recreated. A clean pass would not explain the earlier failure.
+- **E2 token path:** E2 would still use the stand-in unless the check runs in an image that
+  contains both Node.js and gcloud. That change would need its own approval.
+- **Owner steps:** the same as before (project, billing, access grant).
+- **Not authorized now.**

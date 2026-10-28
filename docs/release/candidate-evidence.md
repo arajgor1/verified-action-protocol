@@ -66,7 +66,11 @@ checks remain, not yet run ([publication-plan.md](publication-plan.md), section 
     Scheduler received 401 from the Cloud Run Admin API; unresolved, probable cause recorded),
     E2 `7fac42d8` **PASSED**, teardown `4270bbcf`.
 
-  The project is `DELETE_REQUESTED` (deletion requested, not completed). The previous image's run
+  The project is `DELETE_REQUESTED` (deletion requested, not completed).
+- **Successor candidate (prepared, not validated).** It fixes the project targeting of
+  `infra/gcp/gate-identities.sh` and adds `tests/unit/gate-identities.test.ts`. Neither file is in
+  the image build context or the npm packages. Its cloud validation needs the owner's
+  authorization ([publication-plan.md](publication-plan.md), section 7). The previous image's run
   is `8f27612f` on `61ed3b2`.
 - **Clean-room onboarding:** `d97cf09a`, `6fe6bfcb`, `874d389f` on `b85d442`, in a preconfigured
   project; the quickstart's commands are unchanged since.

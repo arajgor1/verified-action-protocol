@@ -95,9 +95,22 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
 
 ## Dedicated gate identities (prepared, not yet exercised)
 
-**Use this script only in a project dedicated to the exercise, and only with
-`CLOUDSDK_CORE_PROJECT` set to that same project.** Some of its commands omit `--project` (a
-defect found in the Plan B run), so without that variable they act on gcloud's active project. In a shared project it leaves
+**Use this script only in a project dedicated to the exercise.**
+
+**Targeting.**
+- In `765be87`, some of the script's commands omitted `--project` and acted on gcloud's active
+  project. This was a defect found in the Plan B run.
+- The successor candidate fixes it. The script requires `VAP_GCP_PROJECT` and passes it to every
+  project-dependent command, in both `create` and `remove`. It never reads or changes the gcloud
+  configuration.
+- Before the first change, it stops if any of these fails:
+  - the project exists and is ACTIVE;
+  - its id matches, and its number matches when `VAP_GCP_PROJECT_NUMBER` is given;
+  - for `create`, the build bucket and the `vap` repository are in that project.
+- A unit test proves this against a deliberately different active project. Its cloud run is
+  pending.
+
+**Permissions.** In a shared project, the script leaves
 project-wide service-account deletion and act-as administration over every account in the
 project. The revised plan for the final gate
 ([release/managed-gate-identity-plan.md](release/managed-gate-identity-plan.md)) recommends

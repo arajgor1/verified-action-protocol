@@ -5,12 +5,16 @@ been applied.** Results, cleanup and spend are in
 [managed-staging-results.md](managed-staging-results.md). The run found a defect in
 `gate-identities.sh`, described next.
 
-**Defect in `gate-identities.sh` (765be87).** `gcloud iam service-accounts create` and the
-repository bindings run without `--project`. They therefore act on gcloud's active project, not
-`VAP_GCP_PROJECT`. In the Plan B run, this created one empty service account in the existing
-project; it was deleted. Until the script is fixed in a later candidate, run it only with
-`CLOUDSDK_CORE_PROJECT` set to the same project as `VAP_GCP_PROJECT`. The commands in section 3
-now do this. Both plans run the managed gate (`managed-provision`, `deploy`,
+**Defect in `gate-identities.sh` (765be87), fixed in the successor candidate.**
+- In `765be87`, `gcloud iam service-accounts create` and the repository bindings ran without
+  `--project`, so they acted on gcloud's active project instead of `VAP_GCP_PROJECT`.
+- In the Plan B run, this created one empty service account in the existing project; it was
+  deleted. The run worked around it by setting `CLOUDSDK_CORE_PROJECT`.
+- The successor's script passes `--project` everywhere and checks the target before any change
+  ([../deployment-gcp.md](../deployment-gcp.md), "Dedicated gate identities").
+- Its regression test has not yet run in the cloud.
+
+Both plans run the managed gate (`managed-provision`, `deploy`,
 `managed-teardown`) on runtime image
 `sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` without the project's
 default build identity, which holds `roles/owner` and is not modified. Every grant below is
@@ -262,7 +266,7 @@ gcloud storage buckets create gs://${GATE}_cloudbuild --project=$GATE --location
 # B-2: the submitter (B2), then the dedicated identities exactly as committed (B3)
 for r in cloudbuild.builds.editor logging.viewer storage.admin serviceusage.serviceUsageConsumer; do
   gcloud projects add-iam-policy-binding $GATE --member=$SUB --role=roles/$r --condition=None; done
-CLOUDSDK_CORE_PROJECT=$GATE VAP_GCP_PROJECT=$GATE VAP_GCP_REGION=$R VAP_SUBMITTER=$SUB bash infra/gcp/gate-identities.sh create
+VAP_GCP_PROJECT=$GATE VAP_GCP_PROJECT_NUMBER=<gate project number> VAP_GCP_REGION=$R VAP_SUBMITTER=$SUB bash infra/gcp/gate-identities.sh create   # successor script; with 765be87 also set CLOUDSDK_CORE_PROJECT=$GATE
 PROV=vap-gate-provisioner@$GATE.iam.gserviceaccount.com; DEPL=vap-gate-deployer@$GATE.iam.gserviceaccount.com
 
 # B-3: copy the image by digest (B4, B5), as a build in the gate project

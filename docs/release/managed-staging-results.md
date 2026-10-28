@@ -79,6 +79,8 @@ create` and its repository binding without `--project`. With the dispatch identi
 project set to the existing project, it created `vap-gate-provisioner` there before failing.
 - That account had no bindings and no keys, and was deleted about 4 minutes later.
 - The rerun pinned `CLOUDSDK_CORE_PROJECT` to the disposable project.
+- The successor candidate fixes the script (explicit `--project` everywhere, checks before any
+  change). That fix does not address the Scheduler failure.
 - No other resource or binding was created in the existing project; this was checked by listing.
 
 **Cleanup:**
@@ -98,9 +100,26 @@ project set to the existing project, it created `vap-gate-provisioner` there bef
 - cents for Cloud Run, Scheduler, Artifact Registry and Secret Manager;
 - **under $0.70 in total**, against the $5 ceiling.
 
+**Further analysis of the saved logs (no new runs).**
+- This uses only logs saved before the project was deleted; the project's own logs are no longer
+  reachable.
+- **Attempt 1:** Cloud Scheduler made 17 calls as `vap-scheduler`, from 21:14 to 21:29 UTC. All
+  17 returned HTTP 200. The account had been created about 25 minutes before the first call.
+- **Attempt 2:** the account had been recreated about 23 minutes before the first call (21:59
+  UTC), so it was about the same age.
+  - Every call in the first 5 minutes returned 401 (6 calls, 21:59–22:03).
+  - After that the results were mixed: 3 returned 200 and 5 returned 401, up to 22:11.
+- The status was 401 (unauthenticated) rather than 403 (permission denied). That suggests the
+  credential presented for `vap-scheduler` was not accepted, rather than a missing role.
+- The difference between the attempts that the logs show is that attempt 2's accounts reused
+  names deleted about 3.5 minutes earlier.
+- **This remains a hypothesis.** The logs do not establish the cause, and no run was made to test
+  it.
+
 **Result.** On the exact final digest, the managed deployment gate passed once (attempt 1) and
 failed once (attempt 2, Scheduler authentication). The live SDK call passed once (attempt 2) and
-failed once (attempt 1, test defect). Each check passed in one of the two deployments, but not
+failed once (attempt 1, test defect). The passing E2 call authenticated through a shim that stood
+in for the SDK's `gcloud` token source, not through the SDK's normal token path. Each check passed in one of the two deployments, but not
 both in the same one. Both failures are recorded as observed.
 
 ## Previous image run (candidate 61ed3b2): PASSED
