@@ -14,7 +14,7 @@ const grant = await operator.createGrant({
   principal: "demo-agent",
   allowed_actions: ["issues.create"],
   allowed_targets: ["issue://issue-tracker/*"],
-  risk_ceiling: 1,
+  risk_ceiling: 2, // creating an issue is compensable, risk tier 2
   preauthorized_actions: ["issues.create"],
   expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
 });
