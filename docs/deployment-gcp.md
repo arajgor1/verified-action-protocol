@@ -107,8 +107,9 @@ This path ran end to end ([release/managed-staging-results.md](release/managed-s
   - the project exists and is ACTIVE;
   - its id matches, and its number matches when `VAP_GCP_PROJECT_NUMBER` is given;
   - for `create`, the build bucket and the `vap` repository are in that project.
-- A unit test proves this against a deliberately different active project. Its cloud run is
-  pending.
+- A unit test checks this against a deliberately different active project. Its first cloud run
+  (on `4d50c16`) failed because of a defect in the test; a corrected test is prepared but has not
+  run ([release/publication-plan.md](release/publication-plan.md), section 7).
 
 **Permissions.** In a shared project, the script leaves
 project-wide service-account deletion and act-as administration over every account in the

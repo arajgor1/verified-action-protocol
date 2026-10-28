@@ -153,12 +153,13 @@ verified run.
 | D8 | Announcement | draft ready. Post only after PA1, PA4 and E1 |
 | D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
 | — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |
-| D10 | Successor candidate validation (V1, V2) | prepared; needs authorization (under $0.15) |
+| D10 | Successor candidate validation (V1, V2) | V1 on `4d50c16` failed (test defect); V2 not run. A corrected test is prepared; running V1 and V2 on it needs a new authorization (section 7) |
 | D11 | Release path | Option 1 (experimental release with the managed-deployment limitation stated) or Option 2 (a bounded validation run first); section 7 |
 
 ## 7. Successor candidate and release options
 
-Cloud testing is stopped. No deployment, account recreation or further spend is authorized.
+Cloud testing is stopped. No deployment, account recreation or further spend is authorized. The
+one authorized validation (V1 and V2 on `4d50c16`, up to $0.15) stopped when V1 failed.
 
 ### The successor candidate
 
@@ -175,7 +176,30 @@ Cloud testing is stopped. No deployment, account recreation or further spend is 
   - So runtime image `sha256:d79c04bd…` and the tarballs of release `9fd981db`, built from
     `765be87`, are the artifacts the successor would ship unchanged. Their revision label stays
     `765be87`, and the release notes must say so.
-- **Validation status: not run.** Nothing was executed locally either.
+- **Validation status: V1 failed on `4d50c16`; V2 was not run.** Nothing was executed locally.
+
+**V1 on `4d50c16`: failed (Cloud Build `75c210a7`, about 1 build-minute, under $0.03).**
+- Source hygiene, install, build and exit propagation passed. The unit step ran 82 tests: 80
+  passed and 2 failed. The integration, browser, demo and benchmark steps did not run.
+- Both failures are in the new test. The `create` and `remove` cases each failed when counting
+  project-level role bindings (`gcloud projects add-iam-policy-binding <project>` and its removal).
+- **Cause, from the log and the test source:** the test classified each recorded call by its
+  first three words. For `gcloud projects ...` the third word is the project id, so project-level
+  bindings never matched the list of changing commands and were counted as zero.
+- In the same two cases, the targeting checks ran before the failing line and passed: every
+  recorded call named only the supplied project. The account, bucket and repository binding counts
+  also passed. The "checks before the first change" assertions in the `create` case come after the
+  failing line and did not run.
+- The other 15 cases of the new test passed (the 14 refusals, the skipped bindings on `remove` and
+  the matching project number), but, because of the same defect, their "no change" checks did not
+  recognize project-level bindings.
+- The script was not changed by this result. Whether it behaves as intended for project-level
+  bindings is not yet shown by a passing test.
+
+**Corrected test (prepared, not run).** A successor commit changes only
+`tests/unit/gate-identities.test.ts`: `gcloud projects` calls are classified by their first two
+words. This makes the counts, the ordering check and every "no change" check cover project-level
+bindings. It is a new candidate commit, so it needs a new V1 and V2 authorization.
 
 **Validation needed before it can be the candidate** (owner authorization required):
 
