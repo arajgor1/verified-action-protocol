@@ -14,6 +14,13 @@ guessing. Submitted, completed, verified, partially applied and unknown are kept
 
 ## What is in the supported release
 
+**Source and artifacts come from two commits.** The source tree is validated commit `82f5bca`.
+The runtime image, npm packages and schema bundle were built from `765be87`, and their revision
+label says `765be87`. The two differ only by a fix to the gate-identity setup script
+(`infra/gcp/gate-identities.sh` now targets an explicitly named project), its regression test, and
+documentation; none of these files is part of the image or packages
+([manifest](release/manifest.md)).
+
 - **Protocol 0.1 (experimental):** JSON Schemas, method contracts, error codes with retry
   dispositions, canonical JSON and keyed digests, executable examples. Bundle:
   `vap-schemas-0.1.tar.gz`.
@@ -72,8 +79,9 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
   tarballs, not packages from the npm registry (nothing is published yet), and the example ran
   offline, with no call to a deployed API. Two checks remain:
   - a fresh install from the public registry;
-  - a live SDK call against the final image deployed on the managed path.
-- **Release gates:** 161 tests, fault and security suites, an ephemeral staging rehearsal, image
+  - a live SDK call against the final image deployed on the managed path, through the SDK's
+    normal gcloud token source (the passing call used a test stand-in for it).
+- **Release gates:** 161 tests on the build commit (180 on the validated source commit), fault and security suites, an ephemeral staging rehearsal, image
   scans with 0 fixable HIGH/CRITICAL findings, secret and identifier scans of the source, its
   history, the packages and the images ([evidence index](release/candidate-evidence.md)).
 

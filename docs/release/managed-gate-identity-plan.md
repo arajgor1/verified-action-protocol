@@ -12,8 +12,8 @@ been applied.** Results, cleanup and spend are in
   deleted. The run worked around it by setting `CLOUDSDK_CORE_PROJECT`.
 - The successor's script passes `--project` everywhere and checks the target before any change
   ([../deployment-gcp.md](../deployment-gcp.md), "Dedicated gate identities").
-- Its regression test failed its first cloud run because of a defect in the test. A corrected test
-  is prepared but has not run.
+- Its regression test passed in the cloud on `82f5bca`, after a first run failed because of a
+  defect in the test.
 
 Both plans run the managed gate (`managed-provision`, `deploy`,
 `managed-teardown`) on runtime image

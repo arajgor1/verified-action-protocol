@@ -14,7 +14,8 @@ Nothing has been published, pushed, tagged or made public.
 
 | Item | Value |
 |---|---|
-| Validated commit | `765be87bc00464c34a5fc41abd416905b8ad9f3f` on branch `publication/v0.1.0-rc1` (16 commits reachable at validation) |
+| Validated source commit | `82f5bcab572575a57a35131fb5ff5c73412a3d30` on branch `publication/v0.1.0-rc1`: full suite passed (`c0b37f6c`). It differs from the artifact build commit only by the gate-identities script fix, its regression test and documentation |
+| Artifact build commit | `765be87bc00464c34a5fc41abd416905b8ad9f3f` (16 commits reachable at its validation): the gates below ran on it, and the image and packages were built from it |
 | Version | `0.1.0-rc.1` (npm packages, runtime build version, MCP bridge, SDK/CLI user agents) |
 | Package names | `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters` (renamed from `@vap/*`, a scope owned by an unrelated publisher). npm scope ownership is **not confirmed** ([publication-plan.md](publication-plan.md), section 2) |
 | Release scope | core: runtime image, npm packages, schema bundle. The browser adapter and worker-browser image are experimental and not part of the release ([../security/browser-image-assessment.md](../security/browser-image-assessment.md)) |
@@ -23,7 +24,7 @@ Nothing has been published, pushed, tagged or made public.
 | Changes since `fb49426` | package scope `@verified-action-protocol`; consumer-install gate in the release pipeline and the documented SDK example; the browser adapter's test-only `launch` option no longer exposes Playwright types; dispatcher support for a dedicated build identity and the provisioning `--deployer` option (managed gate, prepared); the staging rehearsal waits for PostgreSQL over TCP; documentation |
 | Later commits | documentation only; see [manifest.md](manifest.md) |
 
-## Gates on the validated commit
+## Gates on the artifact build commit
 
 Every run was submitted with `scripts/vap-cloud.sh` from its own fresh single-branch clone of the
 publication branch, except the inspection (an ad-hoc read-only build against the image digests).
@@ -67,11 +68,14 @@ checks remain, not yet run ([publication-plan.md](publication-plan.md), section 
     E2 `7fac42d8` **PASSED**, teardown `4270bbcf`.
 
   The project is `DELETE_REQUESTED` (deletion requested, not completed).
-- **Successor candidate (not validated).** It fixes the project targeting of
-  `infra/gcp/gate-identities.sh` and adds `tests/unit/gate-identities.test.ts`. Neither file is in
-  the image build context or the npm packages. Its full-suite run on `4d50c16` (`75c210a7`) failed
-  in the unit step because of a defect in the new test. A corrected test is prepared but has not
-  run ([publication-plan.md](publication-plan.md), section 7). The previous image's run
+- **Successor candidate `82f5bca` (validated source commit).** It fixes the project targeting
+  of `infra/gcp/gate-identities.sh` and adds `tests/unit/gate-identities.test.ts`. Neither file
+  is in the image build context or the npm packages.
+  - The full suite on `4d50c16` (`75c210a7`) failed in the unit step because of a defect in the
+    new test.
+  - The corrected test is in `82f5bca`; the full suite passed there (`c0b37f6c`, 180 tests).
+  - Manifest check: [manifest.md](manifest.md). Details: [publication-plan.md](publication-plan.md),
+    section 7. The previous image's run
   is `8f27612f` on `61ed3b2`.
 - **Clean-room onboarding:** `d97cf09a`, `6fe6bfcb`, `874d389f` on `b85d442`, in a preconfigured
   project; the quickstart's commands are unchanged since.

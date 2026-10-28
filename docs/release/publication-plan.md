@@ -1,8 +1,10 @@
 # Publication plan and inventory: VAP 0.1.0-rc.1 (prepared, not executed)
 
 Nothing below has been done. Nothing has been pushed, tagged, published or posted, no repository
-visibility has changed, and no residual security risk has been accepted. Feature work is frozen
-on candidate `765be87`; later commits change documentation only. **No public action happens
+visibility has changed, and no residual security risk has been accepted. Feature work is frozen.
+The validated source commit is `82f5bca`; it differs from artifact build commit `765be87` only by
+the gate-identities script fix, its regression test and documentation. Later commits change
+documentation only. **No public action happens
 before the owner explicitly authorizes it**, and each public action in section 3 is authorized on
 its own (section 6).
 
@@ -11,9 +13,10 @@ its own (section 6).
 | Item | Value |
 |---|---|
 | Branch | `publication/v0.1.0-rc1` (local only). Its own history: root `5df8873` (validated tree of the first candidate), then the commits listed in [manifest.md](manifest.md). Commit identities: `arajgor1 <arajgor1@users.noreply.github.com>` only, with `Co-Authored-By` and `Signed-off-by` trailers |
-| Validated source commit | `765be87bc00464c34a5fc41abd416905b8ad9f3f` |
+| Validated source commit | `82f5bcab572575a57a35131fb5ff5c73412a3d30` (full suite passed, Cloud Build `c0b37f6c`) |
+| Artifact build commit | `765be87bc00464c34a5fc41abd416905b8ad9f3f`: the image, npm packages and schema bundle below were built from it (release `9fd981db`) and are unchanged by the later source changes ([manifest.md](manifest.md)) |
 | Repository-tree commit | the documentation-only commit at the tip of that branch that records the manifest check ([manifest.md](manifest.md)); proposed tag `v0.1.0-rc.1` on it |
-| Runtime image | `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`, built from the validated commit by release `9fd981db`; labels `org.opencontainers.image.revision=765be87…`, `vap.support=supported`; `VAP_BUILD_VERSION=0.1.0-rc.1`; no Playwright; no setuid/setgid files. Only in the owner's private Artifact Registry |
+| Runtime image | `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`, built from the artifact build commit by release `9fd981db`; labels `org.opencontainers.image.revision=765be87…`, `vap.support=supported`; `VAP_BUILD_VERSION=0.1.0-rc.1`; no Playwright; no setuid/setgid files. Only in the owner's private Artifact Registry |
 | npm packages (built by `9fd981db`, not published) | `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters`, all `0.1.0-rc.1`, files `verified-action-protocol-<name>-0.1.0-rc.1.tgz`. `/adapters` lists `playwright` only as an optional peer dependency |
 | Schema bundle | `vap-schemas-0.1.tar.gz` (protocol 0.1 JSON Schemas and examples) |
 | Checksums | `SHA256SUMS` of release `9fd981db` (covers private originals too; a public subset is generated at step R2) |
@@ -153,13 +156,14 @@ verified run.
 | D8 | Announcement | draft ready. Post only after PA1, PA4 and E1 |
 | D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
 | — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |
-| D10 | Successor candidate validation (V1, V2) | V1 on `4d50c16` failed (test defect); V2 not run. A corrected test is prepared; running V1 and V2 on it needs a new authorization (section 7) |
+| D10 | Successor candidate validation (V1, V2) | authorized and run on `82f5bca`: V1 passed (`c0b37f6c`); V2 result in [manifest.md](manifest.md). The earlier V1 on `4d50c16` failed (test defect) |
 | D11 | Release path | Option 1 (experimental release with the managed-deployment limitation stated) or Option 2 (a bounded validation run first); section 7 |
 
 ## 7. Successor candidate and release options
 
 Cloud testing is stopped. No deployment, account recreation or further spend is authorized. The
-one authorized validation (V1 and V2 on `4d50c16`, up to $0.15) stopped when V1 failed.
+first authorized validation (V1 and V2 on `4d50c16`, up to $0.15) stopped when V1 failed. The
+second (V1 and V2 on `82f5bca`, up to $0.15) is recorded below.
 
 ### The successor candidate
 
@@ -176,7 +180,14 @@ one authorized validation (V1 and V2 on `4d50c16`, up to $0.15) stopped when V1 
   - So runtime image `sha256:d79c04bd…` and the tarballs of release `9fd981db`, built from
     `765be87`, are the artifacts the successor would ship unchanged. Their revision label stays
     `765be87`, and the release notes must say so.
-- **Validation status: V1 failed on `4d50c16`; V2 was not run.** Nothing was executed locally.
+- **Validation status: V1 passed on `82f5bca`** (after failing on `4d50c16`); V2 is recorded in
+  [manifest.md](manifest.md). Nothing was executed locally.
+
+**V1 on `82f5bca`: passed (Cloud Build `c0b37f6c`, about 5 build-minutes, under $0.10).** Every
+step passed: source hygiene, install, build, exit propagation, unit (82), integration
+(34 + 20 + 12 + 3), browser (5), demo (24) and benchmark; 180 tests in all. All 19 cases of the
+gate-identities regression test passed, including the counts of project-level bindings and the
+check that every lookup precedes the first change.
 
 **V1 on `4d50c16`: failed (Cloud Build `75c210a7`, about 1 build-minute, under $0.03).**
 - Source hygiene, install, build and exit propagation passed. The unit step ran 82 tests: 80
@@ -190,8 +201,8 @@ one authorized validation (V1 and V2 on `4d50c16`, up to $0.15) stopped when V1 
   recorded call named only the supplied project. The account, bucket and repository binding counts
   also passed. The "checks before the first change" assertions in the `create` case come after the
   failing line and did not run.
-- The other 15 cases of the new test passed (the 14 refusals, the skipped bindings on `remove` and
-  the matching project number), but, because of the same defect, their "no change" checks did not
+- The other 17 cases of the new test passed (the 14 refusals, the skipped bindings on `remove`,
+  the matching project number and the configuration check), but, because of the same defect, their "no change" checks did not
   recognize project-level bindings.
 - The script was not changed by this result. Whether it behaves as intended for project-level
   bindings is not yet shown by a passing test.
@@ -199,9 +210,9 @@ one authorized validation (V1 and V2 on `4d50c16`, up to $0.15) stopped when V1 
 **Corrected test (prepared, not run).** A successor commit changes only
 `tests/unit/gate-identities.test.ts`: `gcloud projects` calls are classified by their first two
 words. This makes the counts, the ordering check and every "no change" check cover project-level
-bindings. It is a new candidate commit, so it needs a new V1 and V2 authorization.
+bindings. It is a new candidate commit (`82f5bca`), so it needed a new V1 and V2 authorization.
 
-**Validation needed before it can be the candidate** (owner authorization required):
+**The two checks** (each run needs owner authorization):
 
 | # | Check | Command | Estimate |
 |---|---|---|---|
@@ -214,8 +225,8 @@ tree.
 
 ### Option 1 (owner's stated preference): experimental core release with stated limitations
 
-- **Release:** the successor, after V1 and V2 pass, as `v0.1.0-rc.1`, experimental core scope.
-  Its artifacts are those of `765be87`, as above.
+- **Release:** source `82f5bca` (plus documentation) as `v0.1.0-rc.1`, experimental core scope,
+  once V2 passes. Its artifacts are those built from `765be87`, as above.
 - **Managed deployment status in the release notes and README:**
 
   > Managed deployment is experimental. On the final image, in a disposable project with
