@@ -73,7 +73,11 @@ project = ${ACTIVE}
   return { status: r.status, stderr: r.stderr, stdout: r.stdout, calls };
 }
 
-const verb = (call: string) => call.split(" ").slice(0, 3).join(" ");
+// `gcloud projects <verb> <project>` has a two-word command; the others have three.
+const verb = (call: string) => {
+  const t = call.split(" ");
+  return t.slice(0, t[0] === "projects" ? 2 : 3).join(" ");
+};
 const mutations = (calls: string[]) => calls.filter((c) => MUTATING.test(verb(c)));
 function effectiveProject(call: string): string {
   const flag = call.match(/(?:^| )--project=(\S+)/);
