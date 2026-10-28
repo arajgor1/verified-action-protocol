@@ -5,8 +5,8 @@
 #   docker compose -f examples/quickstart/compose.yaml down -v            # remove everything
 #
 # Evaluation only. It uses demo authentication (synthetic principals, accepted only on the API
-# container's loopback interface), a digest key generated at startup, automatic migrations and a
-# synthetic destination. No GitHub, model or cloud credentials are used. For a deployment, see
+# container's loopback interface), a fixed demo digest key, automatic migrations and a synthetic
+# destination. No GitHub, model or cloud credentials are used. For a deployment, see
 # docs/deployment-docker.md.
 #
 # The VAP containers follow the deployment restrictions of the security decision record: the
@@ -18,6 +18,21 @@ x-vap: &vap
   user: "1000:1000"
   cap_drop: [ALL]
   security_opt: ["no-new-privileges:true"]
+
+# Shared by the API and the worker.
+x-runtime-env: &runtime-env
+  VAP_ENV: development
+  VAP_DEPLOYMENT_ID: quickstart
+  VAP_DATABASE_URL: postgres://postgres@postgres:5432/vap
+  # Plan digests must use the same key in the API and the worker. A fixed, public value is fine
+  # for this throwaway demo only; a deployment generates a secret key (docs/deployment-docker.md).
+  VAP_DIGEST_KEY: quickstart-demo-only-not-a-secret-0123456789abcdef
+  # Allows the private fixture destination; refused when VAP_ENV=production.
+  VAP_ISOLATED_TEST_MODE: "1"
+  VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN: http://fixture:8081
+  VAP_DISPATCH_MODE: none
+  VAP_WORKER_POLL_MS: "200"
+  VAP_SWEEP_INTERVAL_MS: "2000"
 
 services:
   postgres:
@@ -56,16 +71,11 @@ services:
     <<: *vap
     command: ["apps/api/dist/main.js"]
     environment:
-      VAP_ENV: development
+      <<: *runtime-env
       VAP_AUTH_MODE: demo
       VAP_HOST: 127.0.0.1
       VAP_PORT: "8080"
-      VAP_DEPLOYMENT_ID: quickstart
-      VAP_DATABASE_URL: postgres://postgres@postgres:5432/vap
       VAP_AUTO_MIGRATE: "1"
-      # Allows the private fixture destination; refused when VAP_ENV=production.
-      VAP_ISOLATED_TEST_MODE: "1"
-      VAP_CONNECTOR_ISSUE_TRACKER_ORIGIN: http://fixture:8081
     depends_on:
       postgres: {condition: service_healthy}
       fixture: {condition: service_healthy}
@@ -73,6 +83,14 @@ services:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 2s
       retries: 60
+
+  # Dispatches, verifies and reconciles queued work; the API only accepts it.
+  worker:
+    <<: *vap
+    command: ["apps/worker/dist/main.js", "serve"]
+    environment: *runtime-env
+    depends_on:
+      api: {condition: service_healthy}
 
   # The demo client shares the API container's network namespace, so it reaches the API on
   # loopback, where demo authentication is accepted.
@@ -89,6 +107,7 @@ services:
       - ./demo.mjs:/app/examples/quickstart/demo.mjs:ro
     depends_on:
       api: {condition: service_healthy}
+      worker: {condition: service_started}
 
   # Installs the SDK from npm into a throwaway Node container and runs examples/connect.
   connect:
@@ -106,3 +125,4 @@ services:
     command: ["sh", "-c", "cp -r /src/. /tmp/app && cd /tmp/app && npm install --no-audit --no-fund --loglevel=error && node index.mjs"]
     depends_on:
       api: {condition: service_healthy}
+      worker: {condition: service_started}

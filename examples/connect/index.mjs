@@ -44,7 +44,7 @@ const { operation } = await agent.execute(plan.id, requestKey);
 console.log(`operation ${operation.id}: execution=${operation.execution_status} verification=${operation.verification_status}`);
 
 // 3. Wait for an honest final state. Execution and verification are separate fields.
-const done = await agent.waitForOperation(operation.id);
+const done = await agent.waitForOperation(operation.id, { timeoutMs: 60_000 });
 console.log(`operation ${done.id}: execution=${done.execution_status} verification=${done.verification_status} outcome=${done.outcome}`);
 
 // 4. The receipt and evidence say what happened and how it was checked.

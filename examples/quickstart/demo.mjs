@@ -59,7 +59,7 @@ const p1 = await agent.prepare({ task_id: t1.id, action_id: "issues.update_owner
 out(`\nplan ${p1.id}: ${p1.preview.summary}`);
 const k1 = key("demo");
 const first = await agent.execute(p1.id, k1);
-await agent.waitForOperation(first.operation.id, { until: settled });
+await agent.waitForOperation(first.operation.id, { until: settled, timeoutMs: 60_000 });
 await show("1. Reassign issue (verified success)", first.operation.id);
 const replay = await agent.execute(p1.id, k1);
 out(`  repeating the same request key returned the original operation: ${replay.replayed && replay.operation.id === first.operation.id}`);
@@ -69,10 +69,10 @@ const t2 = await agent.openTask({ goal: "Create an issue despite a dropped reply
 const p2 = await agent.prepare({ task_id: t2.id, action_id: "issues.create", arguments: { title: "Payment webhook retries", owner: "carol" } });
 await post(control, "/faults", { mode: "lost_reply", count: 1 });
 const second = await agent.execute(p2.id, key("demo"));
-await agent.waitForOperation(second.operation.id, { until: settled });
+await agent.waitForOperation(second.operation.id, { until: settled, timeoutMs: 60_000 });
 const lost = await show("2a. Dropped response, before reconciliation (unknown, never shown as success)", second.operation.id);
 const rec = await agent.reconcile(second.operation.id);
-await agent.waitForOperation(second.operation.id, { until: settled });
+await agent.waitForOperation(second.operation.id, { until: settled, timeoutMs: 60_000 });
 const recovered = await show(`2b. After reconciliation (${rec.resolution})`, second.operation.id);
 const writes = await (await fetch(`${control}/writes/${encodeURIComponent(second.operation.id)}`)).json();
 out(`  destination writes for this request: ${writes.writes} (no duplicate)`);
@@ -88,10 +88,10 @@ const t3 = await agent.openTask({ goal: "Create four issues", grant_id: grant.id
 const p3 = await agent.prepare({ task_id: t3.id, action_id: "issues.batch_create", arguments: { items: [1, 2, 3, 4].map((i) => ({ title: `Batch item ${i}`, owner: "dave" })) } });
 await post(control, "/faults", { mode: "partial_batch", count: 1, fail_after: 2 });
 const third = await agent.execute(p3.id, key("demo"));
-await agent.waitForOperation(third.operation.id, { until: settled });
+await agent.waitForOperation(third.operation.id, { until: settled, timeoutMs: 60_000 });
 await show("3a. Batch partly applied", third.operation.id);
 const comp = await agent.recover(third.operation.id, "compensate", key("demo-rec"));
-await agent.waitForOperation(comp.recovery_operation.id, { until: settled });
+await agent.waitForOperation(comp.recovery_operation.id, { until: settled, timeoutMs: 60_000 });
 await show("3b. Original after compensation (history preserved)", third.operation.id);
 await show("3c. Compensation operation", comp.recovery_operation.id);
 

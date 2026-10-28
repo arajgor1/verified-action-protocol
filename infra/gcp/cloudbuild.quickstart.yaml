@@ -55,13 +55,13 @@ steps:
         grep -q "summary: dropped response reconciled to verified with exactly one destination write" reports/demo-output.txt
         grep -q "2a. Dropped response" reports/demo-output.txt
         # The running VAP containers follow the deployment restrictions.
-        for s in api fixture; do
+        for s in api worker fixture; do
           c=$$($$C ps -q $$s)
           docker inspect "$$c" --format "$$s user={{.Config.User}} privileged={{.HostConfig.Privileged}} capdrop={{.HostConfig.CapDrop}} capadd={{.HostConfig.CapAdd}} securityopt={{.HostConfig.SecurityOpt}} devices={{len .HostConfig.Devices}}" | tee -a reports/hardening.txt
           docker exec "$$c" sh -c 'echo "  uid=$$(id -u) $$(grep -E "^(CapEff|NoNewPrivs)" /proc/self/status | tr "\t\n" "  ")"' | tee -a reports/hardening.txt
         done
         grep -q "privileged=true" reports/hardening.txt && exit 1
-        test "$$(grep -c 'uid=1000 CapEff: 0000000000000000 NoNewPrivs: 1' reports/hardening.txt)" = 2
+        test "$$(grep -c 'uid=1000 CapEff: 0000000000000000 NoNewPrivs: 1' reports/hardening.txt)" = 3
 
   - id: connect
     name: ${_DOCKER}
