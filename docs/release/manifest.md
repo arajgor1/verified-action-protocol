@@ -12,7 +12,7 @@ Two commits matter, and they are different:
 | Validated source commit (the source the release ships) | `b55d1cc943038a21af1da92241158a0598e19808` on `publication/v0.1.0-rc1`. Full suite passed in Cloud Build `1c16c003` (184 tests: unit 86, integration 69, browser 5, demo 24). Quickstart check passed on it (`5d858653`). Earlier validated source commit: `82f5bca` (`c0b37f6c`, 180 tests) |
 | Artifact build commit (runtime image, npm packages, schema bundle) | `765be87bc00464c34a5fc41abd416905b8ad9f3f`, built, scanned and install-tested by release `9fd981db` |
 | Source difference between the two | `infra/gcp/gate-identities.sh` (project-targeting fix) and its regression test; `examples/quickstart/*` and `examples/connect/*`; `infra/gcp/cloudbuild.quickstart.yaml`, `infra/gcp/cloudbuild.publish.yaml` and their `scripts/vap-cloud.sh` commands; `release-allowlist.txt`; documentation. None is in the image or a package: the image build copies only `packages`, `apps`, `fixtures`, `examples/config` and the root manifests (the `.dockerignore` allowlist), and every package's `files` lists only its build output (plus schemas, examples and migrations). So the artifacts built from `765be87` are the release artifacts. Their revision label is `765be87` |
-| Documentation commit checked by the manifest check | the commit that adds this text; the result is recorded below in the next commit |
+| Documentation commit checked by the manifest check | `4572fd1a1133ab12424f25355ecf13c5327a2890` (`e1a2b36c`, below) |
 | Final documentation-only commit | the tip of `publication/v0.1.0-rc1`, which records the manifest check result. It changes documentation only and is **not** itself checked by the manifest check; the publication dry run runs on it. Its id is stated with the release; the tag goes on it |
 | Public destinations (planned, [publication-plan.md](publication-plan.md) section 9) | `ghcr.io/arajgor1/verified-action-protocol@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` (tag `0.1.0-rc.1`, digest preserved by the copy); npm `@verified-action-protocol/*@0.1.0-rc.1` (dist-tag `next`); GitHub `arajgor1/verified-action-protocol`, tag `v0.1.0-rc.1` |
 | Supported artifacts | runtime image `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`; npm packages `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters` `0.1.0-rc.1` (built and install-tested from tarballs, not published; scope ownership not confirmed, see [publication-plan.md](publication-plan.md)); schema bundle `vap-schemas-0.1.tar.gz` |
@@ -48,8 +48,17 @@ fails unless:
 
 ## Manifest check result
 
-Pending: the check runs with `--tested b55d1cc` against the commit that adds this text. Its
-result is recorded in the next commit, which changes only documentation.
+Cloud Build `e1a2b36c-e3f4-4081-8b16-e71d5a436c75`, on branch `publication/v0.1.0-rc1`, checked
+validated source commit `b55d1cc943038a21af1da92241158a0598e19808` against documentation commit
+`4572fd1a1133ab12424f25355ecf13c5327a2890` and passed:
+- the validated commit is an ancestor;
+- 1 commit after it, 14 files changed, 0 outside documentation;
+- 0 documented-command problems;
+- the image digests recorded are the runtime and worker-browser digests above;
+- the tree's identifier scan is clean (287 files).
+
+The commit after `4572fd1` records this result and changes only this file. The publication dry
+run scans the whole history of the branch for identifiers.
 
 Earlier checks: `b41371cc` (validated commit `82f5bca` against `0de4720`, passed) and `ffc82a0e`
 (`765be87` against `56641bc`).
