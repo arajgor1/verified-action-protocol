@@ -17,6 +17,7 @@
 #   bash scripts/vap-cloud.sh managed-teardown
 #   bash scripts/vap-cloud.sh cleanup --run <run_id>
 #   bash scripts/vap-cloud.sh quickstart [--image <registry/path@sha256:...> --packages <gs://release artifacts>]
+#   bash scripts/vap-cloud.sh publish --image <registry/path@sha256:...> --packages <gs://release artifacts> --history-ref <branch> [--dry-run-image <registry/path>] [--for-real]
 #
 # Requires VAP_GCP_PROJECT, VAP_GCP_REGION and VAP_EVIDENCE_BUCKET from the operator's private
 # configuration. Fails closed when they are missing; there is no local fallback. Optional:
@@ -25,7 +26,7 @@
 set -euo pipefail
 
 cmd="${1:-}"; shift || true
-SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; PACKAGES=""; CONFIG="examples/config/adapters.tutorial.json"
+SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; PACKAGES=""; DRY=1; DRYDST=""; CONFIG="examples/config/adapters.tutorial.json"
 while [ $# -gt 0 ]; do
   case "$1" in
     --suite) SUITE="$2"; shift 2 ;;
@@ -42,6 +43,8 @@ while [ $# -gt 0 ]; do
     --expires) EXPIRES="$2"; shift 2 ;;
     --deployer) DEPLOYER="$2"; shift 2 ;;
     --packages) PACKAGES="$2"; shift 2 ;;
+    --dry-run-image) DRYDST="$2"; shift 2 ;;
+    --for-real) DRY=0; shift ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -140,5 +143,15 @@ case "$cmd" in
       [[ "$PACKAGES" =~ ^gs://[a-z0-9_./-]+[a-z0-9]$ ]] || { echo "--packages must be the gs:// directory holding the release tarballs and SHA256SUMS" >&2; exit 2; }
     fi
     archive; submit infra/gcp/cloudbuild.quickstart.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE,_PACKAGES=$PACKAGES" ;;
-  *) sed -n '2,23p' "$0"; exit 2 ;;
+  publish)
+    # Dry run unless --for-real. Real mode reads the Secret Manager secret versions named by
+    # VAP_GITHUB_SECRET and VAP_NPM_SECRET (operator-private; never their values).
+    [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "--image must be an immutable digest reference" >&2; exit 2; }
+    [[ "$PACKAGES" =~ ^gs://[a-z0-9_./-]+[a-z0-9]$ ]] || { echo "--packages must be the gs:// directory holding the release artifacts" >&2; exit 2; }
+    [ "$HISTREF" != "--all" ] || { echo "--history-ref <release branch> is required: only that branch's history is published" >&2; exit 2; }
+    if [ "$DRY" = 0 ]; then
+      [[ "${VAP_GITHUB_SECRET:-}" =~ ^projects/[^/]+/secrets/[^/]+/versions/[^/]+$ && "${VAP_NPM_SECRET:-}" =~ ^projects/[^/]+/secrets/[^/]+/versions/[^/]+$ ]]         || { echo "--for-real needs VAP_GITHUB_SECRET and VAP_NPM_SECRET (secret version resource names)" >&2; exit 2; }
+    fi
+    archive history; submit infra/gcp/cloudbuild.publish.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE,_PACKAGES=$PACKAGES,_DRY_RUN=$DRY,_DRYRUN_IMAGE_DST=$DRYDST,_GITHUB_SECRET=${VAP_GITHUB_SECRET:-},_NPM_SECRET=${VAP_NPM_SECRET:-}" ;;
+  *) sed -n '2,24p' "$0"; exit 2 ;;
 esac
