@@ -96,11 +96,14 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
 
 The runtime image has 12 unfixed upstream CVEs and none with a fix available. Each is assessed
 in the [decision record](security/runtime-decision-record.md): 3 are in components absent from
-the image, 6 are unreachable under restrictions the image enforces (no setuid files, non-root
-user, no fstab user mounts) or that operators must keep, and 3 are in tools VAP never runs.
+the image; 6 are unreachable given the image's contents (no setuid files, no fstab user mounts),
+its non-root default user, and restrictions operators must keep; and 3 are in installed tools or
+libraries that VAP does not run, which an operator's recipe or a launch as root could reach.
 Acceptance of the residual risk is the owner's decision and is pending at the time of writing.
-The runtime image runs as a non-root user and contains no setuid/setgid files and no browser
-automation code.
+The runtime image contains no setuid/setgid files and no browser automation code. Its default
+user is non-root; the image cannot stop a launcher from running it as root or privileged, so
+the [deployment restrictions](security/runtime-decision-record.md#deployment-restrictions-that-are-not-enforced-by-the-image)
+apply to every deployment.
 
 ## Limitations
 
