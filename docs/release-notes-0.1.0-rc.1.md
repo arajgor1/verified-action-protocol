@@ -1,8 +1,7 @@
-# VAP 0.1.0-rc.1 release notes (draft, not published)
+# VAP 0.1.0-rc.1 release notes
 
-> **Experimental core release candidate.** Publication, repository visibility, package names and
-> any announcement are the owner's decisions and have not happened. Every figure below links to
-> the recorded Cloud Build evidence.
+> **Experimental release.** The protocol (0.1) and the APIs may change. Every figure below links
+> to recorded Cloud Build evidence.
 
 ## What it is
 
@@ -12,13 +11,26 @@ grant, and leaves a durable operation record. Its outcome is verified with named
 When the reply is lost, VAP reconciles before any retry, and it reports `unknown` rather than
 guessing. Submitted, completed, verified, partially applied and unknown are kept apart.
 
+## Get started
+
+```bash
+git clone https://github.com/arajgor1/verified-action-protocol.git && cd verified-action-protocol
+docker compose -f examples/quickstart/compose.yaml run --rm demo      # recovery demo
+docker compose -f examples/quickstart/compose.yaml run --rm connect   # SDK example
+docker compose -f examples/quickstart/compose.yaml down -v            # remove everything
+```
+
+Docker with Compose v2 is all you need; no GitHub, model or cloud account. Details: the
+[README](../README.md), [connect.md](connect.md) and, for a deployment,
+[deployment-docker.md](deployment-docker.md).
+
 ## What is in the supported release
 
-**Source and artifacts come from two commits.** The source tree is validated commit `82f5bca`.
+**Source and artifacts come from two commits.** The source tree is validated commit `b55d1cc`.
 The runtime image, npm packages and schema bundle were built from `765be87`, and their revision
-label says `765be87`. The two differ only by a fix to the gate-identity setup script
-(`infra/gcp/gate-identities.sh` now targets an explicitly named project), its regression test, and
-documentation; none of these files is part of the image or packages
+label says `765be87`. The later source changes are a fix to the gate-identity setup script, its
+regression test, the quickstart and connect examples, cloud pipelines for the quickstart check and
+for publication, and documentation; none of these files is part of the image or packages
 ([manifest](release/manifest.md)).
 
 - **Protocol 0.1 (experimental):** JSON Schemas, method contracts, error codes with retry
@@ -33,9 +45,14 @@ documentation; none of these files is part of the image or packages
   (client and `vap` CLI), PostgreSQL store, and adapters (declarative HTTP and registered-command
   CLI). The similarly named `@vap` npm scope belongs to an unrelated publisher; do not install
   from it. Installation and a first example: [SDK example](sdk-example.md).
-- **Installation path:** a preconfigured Google Cloud project; everything builds and runs in
-  Cloud Build ([quickstart](quickstart.md)). The optional durable deployment runs on Cloud Run,
-  Cloud Run jobs, Cloud Scheduler, Cloud SQL and Secret Manager ([deployment](deployment-gcp.md)).
+- **Container image:** `ghcr.io/arajgor1/verified-action-protocol@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`
+  (`linux/amd64`, tag `0.1.0-rc.1`).
+- **Supported deployment:** the image by digest as separate Docker containers with PostgreSQL and
+  an OIDC issuer ([deployment-docker.md](deployment-docker.md)), as validated by the ephemeral
+  staging rehearsal (test mode, synthetic destination, local issuer).
+- **Experimental, not supported:** the managed Google Cloud deployment
+  ([deployment-gcp.md](deployment-gcp.md)) and the contributor cloud workflow
+  ([quickstart.md](quickstart.md)).
 
 **Not in the supported release:** the browser adapter and its worker-browser image are
 experimental. The adapter is disabled by default, `playwright` is only an optional peer
@@ -72,16 +89,19 @@ browser image is not published. Blank-project bootstrap (`infra/gcp/bootstrap.sh
     the second attempt; unresolved);
   - a live SDK call from the release tarballs against the deployed image passed once and failed
     once (a defect in the check).
-- **Package installation:** the exact release tarballs installed into an empty project in a fresh
-  directory with its own npm cache, with registry lookups for the scope blocked: no Playwright,
-  browser cache or Chromium installed by default, the documented SDK example ran, and the
-  published TypeScript declarations type-checked with `skipLibCheck` off. This installed local
-  tarballs, not packages from the npm registry (nothing is published yet), and the example ran
-  offline, with no call to a deployed API. Two checks remain:
-  - a fresh install from the public registry;
-  - a live SDK call against the final image deployed on the managed path, through the SDK's
-    normal gcloud token source (the passing call used a test stand-in for it).
-- **Release gates:** 161 tests on the build commit (180 on the validated source commit), fault and security suites, an ephemeral staging rehearsal, image
+- **Quickstart in a fresh environment:** both commands above, unchanged, on a clean Docker host
+  with the release image by digest and the release tarballs: the dropped response was reported
+  `unknown`, reconciled to `verified` with one destination write; the connect example reached
+  `verified`; the VAP containers ran as uid 1000 with no capabilities and `no_new_privs`
+  ([results](release/quickstart-results.md), including two failed attempts and their fixes). The
+  same check against the public image and npm registry runs after publication.
+- **Package installation:** the exact release tarballs installed into an empty project with
+  registry lookups for the scope blocked: no Playwright, browser cache or Chromium installed by
+  default, the documented SDK example ran, and the published TypeScript declarations
+  type-checked with `skipLibCheck` off.
+- **Not shown:** a live SDK call against the image deployed on the managed path through the SDK's
+  normal gcloud token source (the passing call used a test stand-in for it).
+- **Release gates:** 161 tests on the build commit (184 on the validated source commit), fault and security suites, an ephemeral staging rehearsal, image
   scans with 0 fixable HIGH/CRITICAL findings, secret and identifier scans of the source, its
   history, the packages and the images ([evidence index](release/candidate-evidence.md)).
 
@@ -99,8 +119,11 @@ in the [decision record](security/runtime-decision-record.md): 3 are in componen
 the image; 6 are unreachable given the image's contents (no setuid files, no fstab user mounts),
 its non-root default user, and restrictions operators must keep; and 3 are in installed tools or
 libraries that VAP does not run, which an operator's recipe or a launch as root could reach.
-Acceptance of the residual risk is the owner's decision and is pending at the time of writing.
-The runtime image contains no setuid/setgid files and no browser automation code. Its default
+The owner accepted the residual risk for this exact image digest on 2026-10-28: the 3 absent
+components as not affected, the other 9 as accepted exceptions (not proof of safety), conditional
+on the deployment restrictions. Review date 2027-01-28, or earlier when a fix becomes available,
+applicability changes or the supported deployment conditions change. The acceptance does not
+cover new findings or another image. The runtime image contains no setuid/setgid files and no browser automation code. Its default
 user is non-root; the image cannot stop a launcher from running it as root or privileged, so
 the [deployment restrictions](security/runtime-decision-record.md#deployment-restrictions-that-are-not-enforced-by-the-image)
 apply to every deployment.

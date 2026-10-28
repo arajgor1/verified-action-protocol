@@ -14,7 +14,7 @@ Nothing has been published, pushed, tagged or made public.
 
 | Item | Value |
 |---|---|
-| Validated source commit | `82f5bcab572575a57a35131fb5ff5c73412a3d30` on branch `publication/v0.1.0-rc1`: full suite passed (`c0b37f6c`). It differs from the artifact build commit only by the gate-identities script fix, its regression test and documentation |
+| Validated source commit | `b55d1cc943038a21af1da92241158a0598e19808` on branch `publication/v0.1.0-rc1`: full suite passed (`1c16c003`, 184 tests) and the quickstart check passed (`5d858653`). It differs from the artifact build commit by the gate-identities script fix and its test, the quickstart and connect examples, the quickstart and publication pipelines, and documentation, none of which is in the image or packages ([manifest.md](manifest.md)) |
 | Artifact build commit | `765be87bc00464c34a5fc41abd416905b8ad9f3f` (16 commits reachable at its validation): the gates below ran on it, and the image and packages were built from it |
 | Version | `0.1.0-rc.1` (npm packages, runtime build version, MCP bridge, SDK/CLI user agents) |
 | Package names | `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters` (renamed from `@vap/*`, a scope owned by an unrelated publisher). npm scope ownership is **not confirmed** ([publication-plan.md](publication-plan.md), section 2) |
@@ -68,7 +68,15 @@ checks remain, not yet run ([publication-plan.md](publication-plan.md), section 
     E2 `7fac42d8` **PASSED**, teardown `4270bbcf`.
 
   The project is `DELETE_REQUESTED` (deletion requested, not completed).
-- **Successor candidate `82f5bca` (validated source commit).** It fixes the project targeting
+- **Release preparation on `b55d1cc` (validated source commit).** Docker Compose quickstart
+  and SDK connect example, checked in a fresh environment with the release image by digest and
+  the release tarballs ([quickstart-results.md](quickstart-results.md): `44bd2c7e` on `6b375d1`
+  and `5d858653` on `b55d1cc` passed; `9b29bc3b` and `fd1bd623` failed and were fixed). Full
+  suite `1c16c003` (184 tests). Publication dry run `c9360016` on `0b8be52`: asset checksums,
+  history identifier scan (34 commits, clean), npm names free, image copy with digest preserved
+  (to a private test path, deleted afterwards). A full-suite run on `0b8be52` (`1ccbc6e4`) was
+  cancelled when `b55d1cc` superseded it.
+- **Successor candidate `82f5bca` (earlier validated source commit).** It fixes the project targeting
   of `infra/gcp/gate-identities.sh` and adds `tests/unit/gate-identities.test.ts`. Neither file
   is in the image build context or the npm packages.
   - The full suite on `4d50c16` (`75c210a7`) failed in the unit step because of a defect in the

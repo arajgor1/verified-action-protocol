@@ -1,12 +1,13 @@
 # Publication plan and inventory: VAP 0.1.0-rc.1 (prepared, not executed)
 
-Nothing below has been done. Nothing has been pushed, tagged, published or posted, no repository
-visibility has changed, and no residual security risk has been accepted. Feature work is frozen.
-The validated source commit is `82f5bca`; it differs from artifact build commit `765be87` only by
-the gate-identities script fix, its regression test and documentation. Later commits change
-documentation only. **No public action happens
-before the owner explicitly authorizes it**, and each public action in section 3 is authorized on
-its own (section 6).
+Nothing has been pushed, tagged, published or posted, and no repository visibility has changed.
+The owner accepted the residual security risk for the runtime image digest on 2026-10-28 (D1).
+Feature work is frozen. The validated source commit is `b55d1cc`; it differs from artifact build
+commit `765be87` by the gate-identities script fix and its regression test, the quickstart and
+connect examples, the quickstart and publication pipelines with their dispatcher commands, and
+documentation. None of these is in the image or the packages. **Publication happens only as the
+single bounded sequence of [section 9](#9-publication-sequence-for-the-owners-approval), after
+the owner approves it.** It replaces the step-by-step authorizations of sections 3 and 6.
 
 ## 1. Source, image and package mapping
 
@@ -147,13 +148,13 @@ verified run.
 
 | # | Decision | Status and recommendation |
 |---|---|---|
-| D1 | Residual risk of the runtime image's 12 unfixed CVEs | **open.** Three choices, one per category, in the [decision record](../security/runtime-decision-record.md). Nothing is accepted until the owner says so. Precondition for PA1, PA3 and PA4 |
+| D1 | Residual risk of the runtime image's 12 unfixed CVEs | **accepted by the owner (2026-10-28)** for digest `sha256:d79c04bd…` only: 3 not affected, 9 accepted exceptions under the deployment restrictions; review 2027-01-28 ([decision record](../security/runtime-decision-record.md#owner-decision)) |
 | D2 | npm scope `@verified-action-protocol` | **owner action.** The rename is done and tested from tarballs. Ownership is not confirmed: the owner creates the organization and confirms it. Precondition for PA4 |
 | D3 | Managed gate on `sha256:d79c04bd…` | **Plan B authorized and run** (Plan A not authorized). Gate PASS in attempt 1 and FAIL in attempt 2 (Scheduler 401, unresolved); E2 FAIL in attempt 1 (test defect) and PASS in attempt 2. Spend estimated under $0.70. Whether this is sufficient is the owner's decision |
 | D4–D5 | Names and tokens: repository `arajgor1/verified-action-protocol`, GHCR image name, a GitHub token for the image copy | names kept as proposed. Tokens are supplied through Secret Manager or the owner's own session, never in chat |
 | D6 | Provenance | kept private; disclosed as unavailable in the release notes and announcement |
 | D7 | Tag `v0.1.0-rc.1`, GitHub prerelease | as stated (R1, R2, PA2) |
-| D8 | Announcement | draft ready. Post only after PA1, PA4 and E1 |
+| D8 | Announcement | draft ready ([announcement-0.1.0-rc.1.md](announcement-0.1.0-rc.1.md)). The owner posts it after the public check of section 9 passes |
 | D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
 | — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |
 | D10 | Successor candidate validation (V1, V2) | **done.** On `82f5bca`: V1 passed (`c0b37f6c`), V2 passed (`b41371cc`, against `0de4720`). The earlier V1 on `4d50c16` failed (test defect) |
@@ -323,3 +324,38 @@ is accepted, and no preparation or public action may start.
 
 Not requested: another managed deployment gate, IAM changes, or acceptance of any risk on the
 owner's behalf.
+
+## 9. Publication sequence (for the owner's approval)
+
+One bounded sequence replaces the separate authorizations above. The owner approves it once; it
+then runs without further questions, stops at the first failure, never overwrites a published
+version, and reports exactly what was published.
+
+**Destinations (all version `0.1.0-rc.1`):**
+
+| Target | Destination | Content |
+|---|---|---|
+| Source | `github.com/arajgor1/verified-action-protocol`, branch `main` and tag `v0.1.0-rc.1` | the history of `publication/v0.1.0-rc1` up to the final documentation commit (history identifier scan in the dry run) |
+| Container image | `ghcr.io/arajgor1/verified-action-protocol:0.1.0-rc.1` | `sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`, copied with its digest preserved |
+| GitHub prerelease | `v0.1.0-rc.1` on the repository | the release notes; the five npm tarballs, `vap-schemas-0.1.tar.gz`, `public-sbom-runtime.cdx.json`, `public-sbom-source-workspaces.cdx.json`, `public-scan-runtime.txt`, `public-vulns-all-runtime.json`, `public-licenses.json`, and `RELEASE-SHA256SUMS` covering exactly those files |
+| npm | `@verified-action-protocol/{protocol,core,store-postgres,adapters,sdk}@0.1.0-rc.1`, dist-tag `next`, public | the release tarballs, checksums in [manifest.md](manifest.md) |
+| Excluded | | the worker-browser image and every browser artifact, private reports, provenance, the operator index |
+
+**Sequence:**
+1. **Dry run** on the final commit: `vap-cloud.sh publish` without `--for-real`. Checks the
+   asset checksums, the history identifier scan, that no target already holds different content,
+   and copies the image to a private test path to prove the digest is preserved (then deleted).
+2. **Publish** (`--for-real`), one Cloud Build run, in this order: container image (private
+   package), source and tag, GitHub prerelease, npm packages. The repository and the package keep
+   the visibility the owner created them with; npm is public at once, so it goes last.
+3. **Owner:** make the repository and the `verified-action-protocol` container package public
+   (GitHub settings; a public package cannot be made private again).
+4. **Public check:** `vap-cloud.sh quickstart` in public mode, from a fresh environment: the
+   README commands pull the public image and install the SDK from npm. Result recorded in
+   [quickstart-results.md](quickstart-results.md).
+5. The owner posts the announcement.
+
+**On failure:** stop, report which targets were written. A re-run skips targets that already
+hold identical content and stops on any that differ. A published npm version is never
+unpublished or reused; a wrong one is superseded by a new version.
+

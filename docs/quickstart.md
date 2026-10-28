@@ -1,8 +1,12 @@
-# Cloud quickstart
+# Contributor cloud workflow
 
-## Supported installation path (v0.1.0-rc.1)
+> To try VAP, use the Docker Compose quickstart in the [README](../README.md); it needs only
+> Docker. This page is for contributors who run the test suites, demos and release pipelines in
+> their own Google Cloud project.
 
-The supported path is a **preconfigured Google Cloud project**: you (or an administrator) prepare
+## Preconfigured project (v0.1.0-rc.1)
+
+The cloud workflow needs a **preconfigured Google Cloud project**: you (or an administrator) prepare
 the project once with the steps in section 0, then everything runs in Cloud Build. This path was
 verified end to end from a fresh clone (demo, tutorial, integration suite) and, for the optional
 durable deployment, by the managed staging exercise

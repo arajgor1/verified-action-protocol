@@ -1,11 +1,9 @@
 # Verified Action Protocol (VAP) — v0.1 reference runtime
 
-> **Status: experimental core release candidate 0.1.0-rc.1, not yet published.** Unit,
-> integration, demo, release (images, scans, SBOMs, provenance), image-digest, ephemeral staging
-> and managed GCP staging gates have recorded Cloud Build evidence. Real-GitHub and Claude-model
-> comparisons have not run. The browser adapter is experimental and outside the supported release.
-> See [docs/acceptance.md](docs/acceptance.md) for the gate status. Protocol stability:
-> **experimental (0.1)**. The name "VAP" is provisional.
+> **Status: experimental release 0.1.0-rc.1.** The protocol (0.1) and the APIs may change. The
+> supported scope is the core runtime, the HTTP and registered-command adapters, the SDK and the
+> MCP bridge, deployed as containers. The browser adapter, the managed Google Cloud deployment
+> and real-GitHub use are not part of the supported release ([Limitations](#limitations)).
 
 Agents that call APIs, browsers and command lines get back ambiguous answers. A timeout may
 mean "nothing happened" or "it happened and the reply was lost". A 200 can arrive before the
@@ -24,6 +22,127 @@ that keeps these cases apart and lets you inspect them.
 Execution status and verification status are **separate fields**. `outcome` is derived from
 them for display and never replaces them ([docs/protocol/outcomes.md](docs/protocol/outcomes.md)).
 A completed execution with failed verification is never shown as success.
+
+## Try VAP
+
+You need Docker with Compose v2 and an internet connection. Nothing else: no build, and no
+GitHub, model or cloud account.
+
+```bash
+git clone https://github.com/arajgor1/verified-action-protocol.git && cd verified-action-protocol
+docker compose -f examples/quickstart/compose.yaml run --rm demo
+```
+
+This pulls the release image (`ghcr.io/arajgor1/verified-action-protocol@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`) and PostgreSQL 17, starts the runtime, a worker and a
+synthetic issue tracker, and runs [`examples/quickstart/demo.mjs`](examples/quickstart/demo.mjs):
+
+1. **Verified success:** an issue is reassigned under a conditional write; the owner check passes
+   on a fresh read-back; repeating the request key returns the original operation.
+2. **Dropped response:** the issue tracker commits a create but the reply never arrives. VAP
+   reports `unknown` with `reconcile_first`, not success. Reconciliation finds the write through a
+   request-key lookup, verification passes, and the tracker shows exactly one write.
+3. **Partial batch:** two of four creates apply. The receipt lists the per-item effects and the
+   failed aggregate check; compensation then closes exactly those two, as a separate operation.
+
+Excerpt of scenario 2 from the fresh-environment check (Cloud Build `44bd2c7e`):
+
+```text
+2a. Dropped response, before reconciliation (unknown, never shown as success)
+operation op_B3ph6s2xvajhETo4Cbpq  outcome=unknown
+execution=unknown verification=not_requested recovery=none unresolved=true
+  effect issue_created: unknown
+  retry guidance: reconcile_first - Effects cannot be established. Reconcile before any retry; if reconciliation cannot resolve it, an operator must.
+2b. After reconciliation (found_applied)
+operation op_B3ph6s2xvajhETo4Cbpq  outcome=verified
+execution=completed verification=passed recovery=none unresolved=false
+  check owner_matches: pass (source http.issue_tracker:readback version 1)
+  effect issue_created: applied issue://issue-tracker/issues/1001
+  destination writes for this request: 1 (no duplicate)
+  evidence:
+    evd_boX0waozh2xSIP0Km6Yl check=owner_matches result=pass source=http.issue_tracker:readback version=1 freshness=fresh independence=same_process observed_at=2026-10-28T20:19:31.145Z
+  events: operation.accepted -> dispatch.intent -> dispatch.result -> reconcile.started -> reconcile.result -> verification.started -> verification.result
+```
+
+The runtime keeps running after the demo. Remove everything, including the database volume:
+
+```bash
+docker compose -f examples/quickstart/compose.yaml down -v
+```
+
+The quickstart is for evaluation only: demo authentication (accepted only on the API container's
+loopback interface), a fixed demo digest key and a synthetic destination. The image is
+`linux/amd64` and was tested on an x86-64 Linux Docker host. Other platforms (for example Docker
+Desktop on Apple silicon, under emulation) are untested.
+
+## Connect an application
+
+```bash
+docker compose -f examples/quickstart/compose.yaml run --rm connect
+```
+
+This installs `@verified-action-protocol/sdk@0.1.0-rc.1` from npm in a throwaway Node.js 24
+container and runs [`examples/connect/index.mjs`](examples/connect/index.mjs): one action from
+request to `execution=completed verification=passed outcome=verified`. The core of it:
+
+```js
+import { VapClient, demoToken } from "@verified-action-protocol/sdk";
+
+const agent = new VapClient({ baseUrl: "http://127.0.0.1:8080", token: demoToken("demo-agent") });
+const task = await agent.openTask({ goal: "File an issue owned by erin", grant_id, scope, required_checks: [ownerIsErin] });
+const plan = await agent.prepare({ task_id: task.id, action_id: "issues.create", arguments: { title: "Flaky checkout test", owner: "erin" } });
+const { operation } = await agent.execute(plan.id, requestKey); // the same key again returns the same operation
+const done = await agent.waitForOperation(operation.id);        // execution and verification are separate fields
+console.log(done.outcome);                                       // "verified" only if every named check passed
+```
+
+[docs/connect.md](docs/connect.md) walks through it, lists the token providers for a real
+deployment, and shows how to wrap an existing tool: an HTTP API through configuration only, a
+command-line program as a registered recipe, or an MCP client through the bridge.
+
+## Deploy
+
+The supported deployment path is the image by digest as separate Docker containers (migration
+job, API, worker) with PostgreSQL and an OIDC issuer: [docs/deployment-docker.md](docs/deployment-docker.md).
+It states what was validated for this release and what was not. The image's residual
+vulnerabilities are accepted only under deployment restrictions (non-root, no privileged mode, no
+added capabilities or host devices, no root commands in the container, limits on command
+recipes): [security decision record](docs/security/runtime-decision-record.md).
+
+## Limitations
+
+No universal undo, no exactly-once remote side effects, no automatic business semantics for
+arbitrary APIs, no prompt-injection immunity, no compliance certification, no multi-tenant SaaS,
+no arbitrary code sandbox. Cancellation is never rollback. A verifier in the same process is not
+organizational or cryptographic independence; evidence records say so.
+See [docs/limitations.md](docs/limitations.md).
+
+Release-specific limitations:
+- **Managed Google Cloud deployment is experimental.** On the final image it passed once and
+  failed once; in the failing attempt Cloud Scheduler received HTTP 401 from Cloud Run, and the
+  cause is not established. The passing live SDK call used a test stand-in for the SDK's `gcloud`
+  token source ([managed-staging-results.md](docs/release/managed-staging-results.md)).
+- **Docker deployment** was validated in test mode against a synthetic destination with a local
+  OIDC issuer; production mode end to end, real identity providers, TLS, backups and upgrades
+  were not ([deployment-docker.md](docs/deployment-docker.md)).
+- **Not run:** the workflow against a real GitHub repository, and any comparison with
+  model-driven agents (the demo agents are scripted policies).
+- **Browser adapter and worker-browser image:** experimental, excluded from the release.
+- **Residual CVEs:** 12 unfixed upstream findings in the image's Debian base, none with a fix
+  available; 3 not affected, 9 accepted as exceptions under the restrictions above
+  ([decision record](docs/security/runtime-decision-record.md)). Review date 2027-01-28.
+- **No public build provenance** for the npm packages or the image.
+- The name "VAP" is provisional.
+
+## Evidence
+
+The claims above link to recorded cloud runs:
+- [Release manifest](docs/release/manifest.md): source commits, artifact build commit, image
+  digest and package checksums.
+- [Candidate evidence](docs/release/candidate-evidence.md): test suites, release gates, scans,
+  SBOMs, consumer install, staging rehearsal.
+- [Quickstart check](docs/release/quickstart-results.md): the two commands above in a fresh
+  environment.
+- [Acceptance matrix](docs/acceptance.md) and [release notes](docs/release-notes-0.1.0-rc.1.md).
 
 ## What v0.1 provides
 
@@ -45,47 +164,6 @@ A completed execution with failed verification is never shown as success.
 - **Operations**: a read-only viewer that shows uncertainty first, structured redacted logs,
   metrics, runbooks, a GCP deployment path (Cloud Build, Artifact Registry, Cloud Run service and
   jobs, Cloud SQL, Cloud Scheduler) and teardown.
-
-## What it does not do
-
-No universal undo, no exactly-once remote side effects, no automatic business semantics for
-arbitrary APIs, no prompt-injection immunity, no compliance certification, no multi-tenant SaaS,
-no arbitrary code sandbox. Cancellation is never rollback. A verifier in the same process is not
-organizational or cryptographic independence; evidence records say so.
-See [docs/limitations.md](docs/limitations.md).
-
-## Quickstart (cloud)
-
-All builds, tests and demos run in cloud containers. Your workstation only submits work.
-
-The supported installation path is a preconfigured Google Cloud project: do the setup in
-[docs/quickstart.md](docs/quickstart.md) (its first section lists the exact prerequisites;
-section "0. Before you start" covers cloning, `gcloud` sign-in, the APIs to enable, permissions
-and an evidence bucket). Blank-project bootstrap is not supported in this release. Then:
-
-```bash
-export VAP_GCP_PROJECT=<project> VAP_GCP_REGION=<region> VAP_EVIDENCE_BUCKET=<bucket>
-# run the fixture demo in Cloud Build: verified success, lost reply reconciled without duplication, partial batch
-bash scripts/vap-cloud.sh demo
-```
-
-`scripts/vap-cloud.sh` needs only `git`, `bash` and `gcloud`. It archives the exact commit and
-submits it, so nothing is installed or executed on your workstation. Excerpt of the receipts from a recorded run
-(demo pipeline, commit `49885af`):
-
-```text
-2a. Lost reply, before reconciliation (unknown, never shown as success)
-operation op_fmWM0SjbezTjVZEOb5lP  outcome=unknown
-execution=unknown verification=not_requested recovery=none unresolved=true
-  retry guidance: reconcile_first - Effects cannot be established. Reconcile before any retry; if reconciliation cannot resolve it, an operator must.
-2b. After reconciliation (found_applied)
-operation op_fmWM0SjbezTjVZEOb5lP  outcome=verified
-  check owner_matches: pass (source http.issue_tracker:readback version 1)
-  destination writes for this request key: 1 (no duplicate)
-```
-
-Full steps: [docs/quickstart.md](docs/quickstart.md). Durable deployment (optional, in a
-preconfigured project): [docs/deployment-gcp.md](docs/deployment-gcp.md).
 
 ## Register your own HTTP action (configuration only)
 
@@ -139,20 +217,6 @@ The bridge is an ordinary stdio MCP server built on the official SDK (`@modelcon
 1.32.1). It holds no authority of its own; operator endpoints are not exposed as tools.
 Compatibility is claimed only for the SDK client tested in `tests/mcp`
 ([docs/mcp.md](docs/mcp.md)).
-
-## Inspect
-
-From an environment with the SDK's `vap` CLI and access to a deployed API. The npm packages
-are not published yet; they will be published as `@verified-action-protocol/*`
-([SDK example](docs/sdk-example.md)). **Do not install `@vap/*` from npm:** that scope belongs to
-an unrelated publisher.
-
-```bash
-vap operation inspect op_... --evidence --events
-vap task inspect tsk_...
-```
-
-The read-only viewer is served at `/viewer` with the same authorization as the API.
 
 ## Repository map
 

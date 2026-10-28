@@ -1,7 +1,12 @@
 # Runtime image: security decision record (0.1.0-rc.1)
 
-**This is the security reviewer's recommendation, not the owner's acceptance.** Accepting the
-residual risk of each finding below is the owner's decision and is **pending**.
+**Owner decision (2026-10-28): accepted for the experimental release, for this exact image digest
+only, under the deployment restrictions below.** The three "component absent" findings are
+recorded as **not affected**. The six "conditionally unreachable" and three "present but not used"
+findings are **accepted exceptions**: residual risk the owner accepts under stated conditions, not
+proof that the image is safe. The acceptance does not extend to new findings or to any other
+image. Review date: **2027-01-28**, or earlier on a reassessment trigger
+([Owner decision](#owner-decision)).
 
 | Item | Value |
 |---|---|
@@ -137,8 +142,9 @@ does not enforce (below); the runtime does not refuse such a recipe.
 
 ## Deployment restrictions that are not enforced by the image
 
-An operator who runs the image outside the managed pipeline must keep these, or the assessments
-above for the affected rows no longer hold:
+Every deployment of this image must keep these. They are conditions of the owner's acceptance:
+a deployment that breaks one is outside the accepted risk, and the assessments above for the
+affected rows no longer hold.
 1. Launch the container as its default non-root user, without added capabilities, `--privileged`
    or host devices, and do not run processes in it as root (for example `docker exec -u 0`). The
    image sets the non-root user only as a default; it cannot stop a launcher from overriding it.
@@ -147,7 +153,16 @@ above for the affected rows no longer hold:
    tools (`infocmp`, `tic`) on untrusted input (the shipped example configurations register none
    of them).
 3. Do not use `nsenter` from the host into VAP containers as part of operations.
-Adding `--security-opt no-new-privileges` on Docker hosts is recommended defense in depth.
+4. Do not pass block devices or disk images from untrusted sources to the container.
+
+"Untrusted input" means anything an agent, an API caller or a remote destination can influence:
+recipe arguments, files in a workspace, downloaded archives. A recipe that runs only a fixed
+program on operator-controlled files is not affected by restriction 2.
+
+Adding `--security-opt no-new-privileges` (Compose: `security_opt: ["no-new-privileges:true"]`)
+and dropping all capabilities (`--cap-drop ALL`) is recommended; the quickstart Compose file does
+both, and its cloud check confirms uid 1000, an empty effective capability set and
+`NoNewPrivs: 1` in the running containers.
 
 ## Follow-up for every row
 
@@ -155,16 +170,19 @@ Rebuild and rescan when Debian publishes a fix (the release gate fails on any fi
 HIGH/CRITICAL finding, as it did for `zod` CVE-2023-54404 before `zod` was raised to 4.6.7).
 Re-run the inspection whenever the base image or the Dockerfile changes.
 
-## Owner decision (pending)
+## Owner decision
 
-Each category is decided separately. Only the owner's explicit statement records an acceptance.
-Silence, or authorizing another step such as the managed gate, is not acceptance.
+Recorded from the owner's explicit statement of 2026-10-28. Each category was decided separately.
 
-| Decision | Choices | Effect of declining | Status |
-|---|---|---|---|
-| "Component absent" findings (3) | accept as not affecting the image, or decline | the image is not published until the scanner stops reporting them (a Debian update or a different base image, which means a new candidate) | pending |
-| "Conditionally unreachable" findings (6) | accept **with** the three deployment restrictions above, or decline | as above; the restrictions the image does not enforce stay with operators either way | pending |
-| "Present but not used" findings (3) | accept, which relies on restriction 2 for `gzip` and `infocmp` and on restriction 1 for `libacl1`, or decline | the image is not published until each is fixed or removed: for `gzip`, a forced removal in a new candidate; for `ncurses` and `libacl1`, a Debian fix or a different base image | pending; the owner asked for the per-CVE detail above |
+| Item | Decision |
+|---|---|
+| Scope | runtime image `sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` only, for the experimental release `0.1.0-rc.1`. Not the worker-browser image, not any rebuilt or later image, not findings that are not in the table above |
+| "Component absent" (3: CVE-2023-45853, CVE-2026-16742, CVE-2026-9538) | **not affected**, on the evidence in each row (absence measured in this image by inspections `d56d4bae` and `c1838d77`) |
+| "Conditionally unreachable" (6: CVE-2026-53613, -76642, -78409, -78410, -78408, -53615) | **accepted exception**, conditional on restrictions 1 to 4 |
+| "Present but not used" (3: CVE-2025-69720, CVE-2026-41992, CVE-2026-54369) | **accepted exception**, conditional on restriction 2 (`infocmp`, `gzip`) and restriction 1 (`libacl1`). Not a finding that the code is unreachable |
+| Required deployment conditions | the image's non-root user; no privileged mode; no added capabilities; no host devices; no root commands inside the container; the recipe and untrusted-input restrictions above |
+| Review date | 2027-01-28 |
+| Reassessment triggers | a fix becomes available for any of the 12 findings (rebuild and rescan); applicability changes (a new finding, a package added or removed, a change to the Dockerfile or base image, a shipped recipe that runs an affected tool); the supported deployment conditions change (for example a deployment path that runs as root or with added privileges) |
 
-PA1 (source visibility), PA3 (container visibility) and PA4 (npm packages) in
-[../release/publication-plan.md](../release/publication-plan.md) wait for these decisions.
+Removing `gzip` (CVE-2026-41992) is practical in a later image and is recorded as a follow-up,
+not a condition of this release.

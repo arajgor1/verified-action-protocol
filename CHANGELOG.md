@@ -2,9 +2,14 @@
 
 All notable changes are recorded here. The protocol is experimental until 1.0.
 
-## 0.1.0 (unreleased, release candidate in progress)
+## 0.1.0-rc.1 (experimental)
 
 ### Added
+- Docker Compose quickstart (`examples/quickstart`): runtime, worker, PostgreSQL and the synthetic
+  issue tracker from the release image, with a recovery demo and an SDK connect example
+  (`examples/connect`); a fresh-environment cloud check (`vap-cloud.sh quickstart`).
+- Supported Docker deployment guide; publication pipeline with a dry-run default
+  (`vap-cloud.sh publish`).
 - Protocol 0.1: JSON Schemas for Task, Observation, Action, Plan, Operation, Evidence, Grant,
   Approval, Event and all request/response messages; canonical JSON; keyed digests; error codes
   with retry dispositions; outcome derivation; executable and negative examples.

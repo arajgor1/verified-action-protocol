@@ -4,9 +4,13 @@ The canonical tested cloud path is GCP. This page describes the durable profile,
 it uses, and the staging rehearsal. All commands run in Cloud Build. No long-lived service account
 keys are created or used.
 
-> Status (v0.1.0-rc.1): the managed path below ran end to end in an existing project
-> ([release/managed-staging-results.md](release/managed-staging-results.md)). Blank-project
-> bootstrap is **excluded** from this release (see the last section of the steps).
+> **Status (v0.1.0-rc.1): experimental, not a supported deployment path.** It ran end to end on
+> the preceding candidate's image. On the final image the managed gate passed once and failed
+> once: in the failing attempt Cloud Scheduler received HTTP 401 from Cloud Run, and the cause is
+> not established. The passing live SDK call used a test stand-in for the SDK's `gcloud` token
+> source ([release/managed-staging-results.md](release/managed-staging-results.md)). The
+> supported path is [deployment-docker.md](deployment-docker.md). Blank-project bootstrap is
+> **excluded** from this release (see the last section of the steps).
 
 ## Topology
 

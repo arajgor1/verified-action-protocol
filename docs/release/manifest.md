@@ -9,11 +9,12 @@ Two commits matter, and they are different:
 | Item | Value |
 |---|---|
 | Version | `0.1.0-rc.1` |
-| Validated source commit (source and script validation) | `82f5bcab572575a57a35131fb5ff5c73412a3d30` on `publication/v0.1.0-rc1`. Full suite passed in Cloud Build `c0b37f6c` (180 tests, including the 19 cases of `tests/unit/gate-identities.test.ts`) |
+| Validated source commit (the source the release ships) | `b55d1cc943038a21af1da92241158a0598e19808` on `publication/v0.1.0-rc1`. Full suite passed in Cloud Build `1c16c003` (184 tests: unit 86, integration 69, browser 5, demo 24). Quickstart check passed on it (`5d858653`). Earlier validated source commit: `82f5bca` (`c0b37f6c`, 180 tests) |
 | Artifact build commit (runtime image, npm packages, schema bundle) | `765be87bc00464c34a5fc41abd416905b8ad9f3f`, built, scanned and install-tested by release `9fd981db` |
-| Source difference between the two | `infra/gcp/gate-identities.sh` (project-targeting fix), `tests/unit/gate-identities.test.ts` (its regression test), and documentation. Neither file is in the image build context (the `.dockerignore` allowlist admits only `packages`, `apps`, `fixtures`, `examples` and the root manifests) or in any package's `files`, so the artifacts built from `765be87` are the release artifacts. Their revision label is `765be87` |
-| Documentation commit checked by V2 | `0de4720b1dd715517ec3db350674be04aa000291` (manifest check below) |
-| Final documentation-only commit | the tip of `publication/v0.1.0-rc1`, after `0de4720`. It changes documentation only and was **not** checked by V2. Its id is stated with the release and recorded in the operator-only index; the proposed tag goes on it |
+| Source difference between the two | `infra/gcp/gate-identities.sh` (project-targeting fix) and its regression test; `examples/quickstart/*` and `examples/connect/*`; `infra/gcp/cloudbuild.quickstart.yaml`, `infra/gcp/cloudbuild.publish.yaml` and their `scripts/vap-cloud.sh` commands; `release-allowlist.txt`; documentation. None is in the image or a package: the image build copies only `packages`, `apps`, `fixtures`, `examples/config` and the root manifests (the `.dockerignore` allowlist), and every package's `files` lists only its build output (plus schemas, examples and migrations). So the artifacts built from `765be87` are the release artifacts. Their revision label is `765be87` |
+| Documentation commit checked by the manifest check | the commit that adds this text; the result is recorded below in the next commit |
+| Final documentation-only commit | the tip of `publication/v0.1.0-rc1`, which records the manifest check result. It changes documentation only and is **not** itself checked by the manifest check; the publication dry run runs on it. Its id is stated with the release; the tag goes on it |
+| Public destinations (planned, [publication-plan.md](publication-plan.md) section 9) | `ghcr.io/arajgor1/verified-action-protocol@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` (tag `0.1.0-rc.1`, digest preserved by the copy); npm `@verified-action-protocol/*@0.1.0-rc.1` (dist-tag `next`); GitHub `arajgor1/verified-action-protocol`, tag `v0.1.0-rc.1` |
 | Supported artifacts | runtime image `<registry>/vap/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849`; npm packages `@verified-action-protocol/protocol`, `/core`, `/sdk`, `/store-postgres`, `/adapters` `0.1.0-rc.1` (built and install-tested from tarballs, not published; scope ownership not confirmed, see [publication-plan.md](publication-plan.md)); schema bundle `vap-schemas-0.1.tar.gz` |
 | Experimental artifact (not published) | worker-browser image `<registry>/vap/vap-worker-browser@sha256:dfbd09fd917f09491ed4969970e68a171ce404cdab860dfebca1fd5131c0d850` |
 | Artifact checksums | `SHA256SUMS` from release `9fd981db` (26 artifacts, including sanitized `public-*` copies and the consumer-install report); table below |
@@ -47,31 +48,8 @@ fails unless:
 
 ## Manifest check result
 
-Cloud Build `b41371cc-fd34-4938-9ac6-1941536423ca`, on branch `publication/v0.1.0-rc1`, checked
-validated source commit `82f5bcab572575a57a35131fb5ff5c73412a3d30` against documentation commit
-`0de4720b1dd715517ec3db350674be04aa000291` and passed:
-- the validated commit is an ancestor;
-- 2 commits after it, 6 files changed, 0 outside documentation;
-- 0 documented-command problems;
-- the image digests recorded are the runtime and worker-browser digests above;
-- the tree's identifier scan is clean (277 files).
+Pending: the check runs with `--tested b55d1cc` against the commit that adds this text. Its
+result is recorded in the next commit, which changes only documentation.
 
-It superseded check `ffc82a0e` (validated commit `765be87` against `56641bc`).
-
-The validated source commit's history up to `765be87` was scanned in strict mode by release
-`9fd981db`. The later commits change `infra/gcp/gate-identities.sh`,
-`tests/unit/gate-identities.test.ts` and documentation; the final tree that contains them was
-scanned by this check.
-
-| Status | Path |
-|---|---|
-| M | docs/deployment-gcp.md |
-| M | docs/release-notes-0.1.0-rc.1.md |
-| M | docs/release/candidate-evidence.md |
-| M | docs/release/managed-gate-identity-plan.md |
-| M | docs/release/manifest.md |
-| M | docs/release/publication-plan.md |
-
-The commits after `0de4720` change only documentation (this file and
-[publication-plan.md](publication-plan.md)). No manifest check was run on them; their diff against
-`0de4720` is recorded in the operator-only index.
+Earlier checks: `b41371cc` (validated commit `82f5bca` against `0de4720`, passed) and `ffc82a0e`
+(`765be87` against `56641bc`).
