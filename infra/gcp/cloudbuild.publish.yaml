@@ -192,7 +192,8 @@ steps:
         [ "$$DRY_RUN" = 1 ] && { echo "dry run: would publish $$(grep -c ' publish$$' reports/npm-plan.txt || true) packages with --tag next --access public"; exit 0; }
         while read -r p action; do
           [ "$$action" = publish ] || { echo "$$SCOPE/$$p@$$VERSION identical; skipped"; continue; }
-          npm publish "assets/verified-action-protocol-$$p-$$VERSION.tgz" --access public --tag next --userconfig .secrets/npmrc
+          # The ./ prefix keeps npm from reading "assets/<file>" as a GitHub owner/repo shorthand.
+          npm publish "./assets/verified-action-protocol-$$p-$$VERSION.tgz" --access public --tag next --userconfig .secrets/npmrc
         done < reports/npm-plan.txt
         for p in $$PKGS; do echo "$$SCOPE/$$p@$$VERSION $$(npm view "$$SCOPE/$$p@$$VERSION" dist.integrity)"; done | tee reports/npm-published.txt
 
