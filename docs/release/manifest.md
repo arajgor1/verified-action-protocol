@@ -46,9 +46,31 @@ fails unless:
 
 ## Manifest check result
 
-Pending: the check runs with `--tested 82f5bca` against the commit that adds this text. Its
-result is recorded in the next commit, which changes only this file.
+Cloud Build `b41371cc-fd34-4938-9ac6-1941536423ca`, on branch `publication/v0.1.0-rc1`, checked
+validated source commit `82f5bcab572575a57a35131fb5ff5c73412a3d30` against documentation commit
+`0de4720b1dd715517ec3db350674be04aa000291` and passed:
+- the validated commit is an ancestor;
+- 2 commits after it, 6 files changed, 0 outside documentation;
+- 0 documented-command problems;
+- the image digests recorded are the runtime and worker-browser digests above;
+- the tree's identifier scan is clean (277 files).
+
+It superseded check `ffc82a0e` (validated commit `765be87` against `56641bc`).
 
 The validated source commit's history up to `765be87` was scanned in strict mode by release
-`9fd981db`. The commits after `765be87` change the two files named above and documentation; the
-final tree that contains them is scanned by the manifest check.
+`9fd981db`. The later commits change `infra/gcp/gate-identities.sh`,
+`tests/unit/gate-identities.test.ts` and documentation; the final tree that contains them was
+scanned by this check.
+
+| Status | Path |
+|---|---|
+| M | docs/deployment-gcp.md |
+| M | docs/release-notes-0.1.0-rc.1.md |
+| M | docs/release/candidate-evidence.md |
+| M | docs/release/managed-gate-identity-plan.md |
+| M | docs/release/manifest.md |
+| M | docs/release/publication-plan.md |
+
+The commit that adds this section changes only documentation (this file and the decision packet
+in [publication-plan.md](publication-plan.md), section 8). Its own check is not run; its diff
+against `0de4720` is recorded in the operator-only index.

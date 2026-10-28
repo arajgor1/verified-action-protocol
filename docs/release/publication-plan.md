@@ -156,8 +156,8 @@ verified run.
 | D8 | Announcement | draft ready. Post only after PA1, PA4 and E1 |
 | D9 | Default build identity holds `roles/owner` | not modified. The dedicated identities are the test of a restricted setup |
 | — | Preparation R1–R3, and each public action PA1–PA4 | each needs its own explicit authorization |
-| D10 | Successor candidate validation (V1, V2) | authorized and run on `82f5bca`: V1 passed (`c0b37f6c`); V2 result in [manifest.md](manifest.md). The earlier V1 on `4d50c16` failed (test defect) |
-| D11 | Release path | Option 1 (experimental release with the managed-deployment limitation stated) or Option 2 (a bounded validation run first); section 7 |
+| D10 | Successor candidate validation (V1, V2) | **done.** On `82f5bca`: V1 passed (`c0b37f6c`), V2 passed (`b41371cc`, against `0de4720`). The earlier V1 on `4d50c16` failed (test defect) |
+| D11 | Release path | **Option 1 recommended** (the owner's stated preference): experimental core release with the managed-deployment limitation stated; no further deployment gate. Option 2 is not pursued unless the owner asks for it. Confirmation is part of the decision packet, section 8 |
 
 ## 7. Successor candidate and release options
 
@@ -180,8 +180,8 @@ second (V1 and V2 on `82f5bca`, up to $0.15) is recorded below.
   - So runtime image `sha256:d79c04bd…` and the tarballs of release `9fd981db`, built from
     `765be87`, are the artifacts the successor would ship unchanged. Their revision label stays
     `765be87`, and the release notes must say so.
-- **Validation status: V1 passed on `82f5bca`** (after failing on `4d50c16`); V2 is recorded in
-  [manifest.md](manifest.md). Nothing was executed locally.
+- **Validation status: V1 and V2 passed on `82f5bca`** (V1 first failed on `4d50c16`). Nothing
+  was executed locally.
 
 **V1 on `82f5bca`: passed (Cloud Build `c0b37f6c`, about 5 build-minutes, under $0.10).** Every
 step passed: source hygiene, install, build, exit propagation, unit (82), integration
@@ -223,10 +223,19 @@ The strict history scan runs only in the release pipeline, which would also rebu
 It is not proposed: the successor adds two files and documentation, and V2 scans the resulting
 tree.
 
+**V2 on `82f5bca`: passed (Cloud Build `b41371cc`, under 1 build-minute).** Checked against
+documentation commit `0de4720`: 2 commits and 6 files after the validated commit, all
+documentation; no documented-command problems; identifier scan of 277 files clean
+([manifest.md](manifest.md)).
+
+**Spend for the successor validation:** about 6 build-minutes in three builds (`75c210a7`,
+`c0b37f6c`, `b41371cc`), estimated under $0.12 in total; under $0.10 of it within the second
+authorization.
+
 ### Option 1 (owner's stated preference): experimental core release with stated limitations
 
-- **Release:** source `82f5bca` (plus documentation) as `v0.1.0-rc.1`, experimental core scope,
-  once V2 passes. Its artifacts are those built from `765be87`, as above.
+- **Release:** source `82f5bca` (plus documentation) as `v0.1.0-rc.1`, experimental core scope.
+  V1 and V2 have passed. Its artifacts are those built from `765be87`, as above.
 - **Managed deployment status in the release notes and README:**
 
   > Managed deployment is experimental. On the final image, in a disposable project with
@@ -258,3 +267,52 @@ tree.
   contains both Node.js and gcloud. That change would need its own approval.
 - **Owner steps:** the same as before (project, billing, access grant).
 - **Not authorized now.**
+
+## 8. Decision packet: experimental core release `v0.1.0-rc.1`
+
+Nothing in this section is authorized. It collects what the owner needs to decide Option 1.
+
+### What would be released
+
+| Item | Value |
+|---|---|
+| Source | validated source commit `82f5bca` plus documentation commits; the tag goes on the tip of `publication/v0.1.0-rc1` |
+| Artifacts | built from `765be87` by release `9fd981db`: runtime image `sha256:d79c04bd…2c864849`, the five npm tarballs and `vap-schemas-0.1.tar.gz`, checksums in [manifest.md](manifest.md) |
+| Excluded | browser adapter and worker-browser image (experimental), blank-project bootstrap, private development branch, operator index, raw evidence, private provenance |
+| Evidence | full suite on the source commit (`c0b37f6c`, 180 tests); release gates, scans and consumer install on the build commit (`9fd981db` and [candidate-evidence.md](candidate-evidence.md)); manifest check (`b41371cc`) |
+
+### Limitations the release states
+
+- **Managed deployment is experimental**, with the text in section 7, Option 1: on the final
+  image the managed gate passed once and failed once. Cloud Scheduler received HTTP 401 from Cloud
+  Run in the failing attempt. That failure is unresolved and its cause is not established.
+- **Live SDK call:** passed once against the deployed final image, through a test stand-in for the
+  SDK's gcloud token source. The SDK's normal token path against a deployed image is not shown.
+- **npm registry install (E1):** not run; it needs publication.
+- **Public build provenance:** not available (kept private).
+- **Residual CVEs:** 12 unfixed in the runtime image, with the assessment in the
+  [decision record](../security/runtime-decision-record.md).
+- **Artifacts and source differ by commit:** the artifacts carry revision `765be87`; the source
+  is `82f5bca`. The difference is a setup script and its test, outside every artifact.
+
+### Unresolved items carried with the release
+
+- The Scheduler 401 cause: a hypothesis from the saved logs only (reused account names), not
+  tested ([managed-staging-results.md](managed-staging-results.md)).
+- The disposable gate project is `DELETE_REQUESTED`; deletion completes when Google's hold
+  period ends, not before.
+
+### Owner decisions, in order
+
+1. **D11:** confirm Option 1 and the limitation text above (or ask for Option 2 instead).
+2. **D1:** the residual-CVE decisions, one per category in the decision record. Required before
+   PA1, PA3 and PA4.
+3. **D2:** create the npm organization `verified-action-protocol` and confirm ownership.
+   Required before PA4.
+4. **R1–R3:** each preparation step (private repository and tag, draft prerelease, private image
+   copy), authorized one at a time.
+5. **PA1–PA4:** each public action, authorized one at a time, in the order of section 3.
+6. **Announcement:** after PA1 and PA4, and after E1 passes.
+
+Not requested: another managed deployment gate, IAM changes, or acceptance of any risk on the
+owner's behalf.
