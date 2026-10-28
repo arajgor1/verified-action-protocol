@@ -14,7 +14,7 @@
 name: vap-quickstart
 
 x-vap: &vap
-  image: ${VAP_IMAGE:-ghcr.io/verified-action-protocol/vap@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849}
+  image: ${VAP_IMAGE:-ghcr.io/arajgor1/verified-action-protocol@sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849}
   user: "1000:1000"
   cap_drop: [ALL]
   security_opt: ["no-new-privileges:true"]

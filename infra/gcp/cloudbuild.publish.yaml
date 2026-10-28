@@ -1,4 +1,7 @@
-# Publication of a validated release, in one bounded sequence. Nothing is overwritten: a target
+# Publication of a validated release, in one bounded sequence: source and tag, container image,
+# GitHub release, then the npm packages (the only step that is public at once). The repository
+# and the container package stay as visible as the owner created them; making them public is a
+# separate owner action. Nothing is overwritten: a target
 # that already holds identical content is skipped, a target that holds different content stops
 # the build. _DRY_RUN=1 (the default) runs every check and copies the image only to
 # _DRYRUN_IMAGE_DST; it reads no secret and publishes nothing.
@@ -15,8 +18,8 @@ substitutions:
   _DRY_RUN: "1"
   _IMAGE: set-by-operator
   _PACKAGES: set-by-operator
-  _GITHUB_REPO: verified-action-protocol/vap
-  _IMAGE_DST: ghcr.io/verified-action-protocol/vap
+  _GITHUB_REPO: set-by-operator
+  _IMAGE_DST: set-by-operator
   _DRYRUN_IMAGE_DST: ""
   _GITHUB_SECRET: ""
   _NPM_SECRET: ""
@@ -51,10 +54,13 @@ steps:
         set -euo pipefail
         mkdir -p reports assets
         test -f history.bundle || { echo "history bundle missing; run via vap-cloud.sh publish"; exit 1; }
-        gcloud storage cp "${_PACKAGES}/SHA256SUMS" "${_PACKAGES}/verified-action-protocol-*-$$VERSION.tgz" "${_PACKAGES}/vap-schemas-0.1.tar.gz" "${_PACKAGES}/public-sbom-runtime.cdx.json" assets/ >/dev/null
+        # Release assets: the npm tarballs, the schema bundle and the sanitized public reports of the
+        # runtime image and source. Nothing of the worker-browser image.
+        PUBLIC="public-sbom-runtime.cdx.json public-sbom-source-workspaces.cdx.json public-scan-runtime.txt public-vulns-all-runtime.json public-licenses.json"
+        gcloud storage cp "${_PACKAGES}/SHA256SUMS" "${_PACKAGES}/verified-action-protocol-*-$$VERSION.tgz" "${_PACKAGES}/vap-schemas-0.1.tar.gz" $$(for f in $$PUBLIC; do echo "${_PACKAGES}/$$f"; done) assets/ >/dev/null
         cd assets
-        grep -E ' (verified-action-protocol-[a-z-]+-[0-9a-z.-]+\.tgz|vap-schemas-0\.1\.tar\.gz|public-sbom-runtime\.cdx\.json)$' SHA256SUMS > RELEASE-SHA256SUMS
-        test "$$(wc -l < RELEASE-SHA256SUMS)" = 7
+        grep -E ' (verified-action-protocol-[a-z-]+-[0-9a-z.-]+\.tgz|vap-schemas-0\.1\.tar\.gz|public-(sbom-runtime\.cdx|sbom-source-workspaces\.cdx|vulns-all-runtime|licenses)\.json|public-scan-runtime\.txt)$' SHA256SUMS > RELEASE-SHA256SUMS
+        test "$$(wc -l < RELEASE-SHA256SUMS)" = 11
         sha256sum -c RELEASE-SHA256SUMS | tee ../reports/asset-checksums.txt
         rm SHA256SUMS
         cd ..
@@ -81,12 +87,13 @@ steps:
         # The whole history that becomes public must be free of private identifiers.
         (cd /workspace/history.git && node /workspace/scripts/release-hygiene.mjs --history) | tail -3 | tee reports/history-hygiene.txt
         AUTH=(); [ "$$DRY_RUN" = 1 ] || AUTH=(-H "Authorization: Bearer $$(cat .secrets/github)")
+        gh_hdr() { [ "$$DRY_RUN" = 1 ] && echo "X-Dry-Run: 1" || echo "Authorization: Basic $$(printf 'x-access-token:%s' "$$(cat .secrets/github)" | base64 -w0)"; }
         api() { curl -sS -o /tmp/api.json -w '%{http_code}' "$${AUTH[@]}" -H 'Accept: application/vnd.github+json' "https://api.github.com$$1"; }
         code=$$(api "/repos/$$REPO")
         echo "github repository $$REPO: HTTP $$code" | tee -a reports/plan.txt
         if [ "$$code" = 200 ]; then
           node -e 'const r=require("/tmp/api.json"); console.log(`  visibility ${r.visibility}, default branch ${r.default_branch}`)' | tee -a reports/plan.txt
-          remote=$$(git ls-remote "https://github.com/$$REPO.git" "refs/tags/$$TAG" | cut -f1)
+          remote=$$(git -c "http.extraHeader=$$(gh_hdr)" ls-remote "https://github.com/$$REPO.git" "refs/tags/$$TAG" | cut -f1)
           if [ -n "$$remote" ] && [ "$$remote" != "${_COMMIT_SHA}" ]; then echo "tag $$TAG exists at $$remote; refusing to overwrite" >&2; exit 1; fi
           echo "  tag $$TAG: $${remote:-absent}" | tee -a reports/plan.txt
         elif [ "$$DRY_RUN" != 1 ]; then echo "repository $$REPO does not exist or the token cannot see it" >&2; exit 1; fi
@@ -150,6 +157,31 @@ steps:
         $$G -c "http.extraHeader=$$hdr" push "https://github.com/$$REPO.git" "${_COMMIT_SHA}:refs/heads/main" "${_COMMIT_SHA}:refs/tags/$$TAG"
         echo "pushed main and $$TAG at ${_COMMIT_SHA}" | tee reports/source.txt
 
+  - id: release
+    name: ${_NODE}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        [ "$$DRY_RUN" = 1 ] && { echo "dry run: would create prerelease $$TAG on $$REPO with: $$(cd assets && ls | tr '\n' ' ')"; exit 0; }
+        H=(-H "Authorization: Bearer $$(cat .secrets/github)" -H 'Accept: application/vnd.github+json')
+        code=$$(curl -sS -o /tmp/rel.json -w '%{http_code}' "$${H[@]}" "https://api.github.com/repos/$$REPO/releases/tags/$$TAG")
+        if [ "$$code" = 404 ]; then
+          # Relative links in the notes point into the tagged tree.
+          node -e 'const fs=require("fs"); const e=process.env; const body=fs.readFileSync("docs/release-notes-" + e.VERSION + ".md", "utf8").replace(/\]\((?!https?:|#)([^)]+)\)/g, (m, p) => "](https://github.com/" + e.REPO + "/blob/" + e.TAG + "/docs/" + p + ")"); fs.writeFileSync("/tmp/new.json", JSON.stringify({tag_name: e.TAG, name: "VAP " + e.VERSION + " (experimental)", prerelease: true, body}))'
+          curl -sS -f -o /tmp/rel.json "$${H[@]}" -X POST "https://api.github.com/repos/$$REPO/releases" --data-binary @/tmp/new.json
+        fi
+        id=$$(node -pe 'require("/tmp/rel.json").id')
+        have=$$(node -pe 'require("/tmp/rel.json").assets.map(a => a.name).join(" ")')
+        for f in assets/*; do
+          n=$$(basename "$$f")
+          case " $$have " in *" $$n "*) echo "asset $$n present; skipped"; continue ;; esac
+          curl -sS -f -o /dev/null "$${H[@]}" -H 'Content-Type: application/octet-stream' --data-binary @"$$f" "https://uploads.github.com/repos/$$REPO/releases/$$id/assets?name=$$n"
+          echo "uploaded $$n"
+        done | tee reports/release.txt
+        node -pe '"release " + require("/tmp/rel.json").html_url' | tee -a reports/release.txt
+
   - id: npm
     name: ${_NODE}
     entrypoint: bash
@@ -163,30 +195,6 @@ steps:
           npm publish "assets/verified-action-protocol-$$p-$$VERSION.tgz" --access public --tag next --userconfig .secrets/npmrc
         done < reports/npm-plan.txt
         for p in $$PKGS; do echo "$$SCOPE/$$p@$$VERSION $$(npm view "$$SCOPE/$$p@$$VERSION" dist.integrity)"; done | tee reports/npm-published.txt
-
-  - id: release
-    name: ${_NODE}
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        [ "$$DRY_RUN" = 1 ] && { echo "dry run: would create prerelease $$TAG on $$REPO with: $$(cd assets && ls | tr '\n' ' ')"; exit 0; }
-        H=(-H "Authorization: Bearer $$(cat .secrets/github)" -H 'Accept: application/vnd.github+json')
-        code=$$(curl -sS -o /tmp/rel.json -w '%{http_code}' "$${H[@]}" "https://api.github.com/repos/$$REPO/releases/tags/$$TAG")
-        if [ "$$code" = 404 ]; then
-          node -e 'const fs=require("fs"); fs.writeFileSync("/tmp/new.json", JSON.stringify({tag_name: process.env.TAG, name: "VAP " + process.env.VERSION + " (experimental)", prerelease: true, body: fs.readFileSync("docs/release-notes-0.1.0-rc.1.md", "utf8")}))'
-          curl -sS -f -o /tmp/rel.json "$${H[@]}" -X POST "https://api.github.com/repos/$$REPO/releases" --data-binary @/tmp/new.json
-        fi
-        id=$$(node -pe 'require("/tmp/rel.json").id')
-        have=$$(node -pe 'require("/tmp/rel.json").assets.map(a => a.name).join(" ")')
-        for f in assets/*; do
-          n=$$(basename "$$f")
-          case " $$have " in *" $$n "*) echo "asset $$n present; skipped"; continue ;; esac
-          curl -sS -f -o /dev/null "$${H[@]}" -H 'Content-Type: application/octet-stream' --data-binary @"$$f" "https://uploads.github.com/repos/$$REPO/releases/$$id/assets?name=$$n"
-          echo "uploaded $$n"
-        done | tee reports/release.txt
-        node -pe '"release " + require("/tmp/rel.json").html_url' | tee -a reports/release.txt
 
   - id: forget-tokens
     name: ${_NODE}

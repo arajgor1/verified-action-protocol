@@ -17,7 +17,8 @@
 #   bash scripts/vap-cloud.sh managed-teardown
 #   bash scripts/vap-cloud.sh cleanup --run <run_id>
 #   bash scripts/vap-cloud.sh quickstart [--image <registry/path@sha256:...> --packages <gs://release artifacts>]
-#   bash scripts/vap-cloud.sh publish --image <registry/path@sha256:...> --packages <gs://release artifacts> --history-ref <branch> [--dry-run-image <registry/path>] [--for-real]
+#   bash scripts/vap-cloud.sh publish --image <registry/path@sha256:...> --packages <gs://release artifacts> --history-ref <branch>
+#                                     --repo <owner/name> --image-dst <ghcr.io/owner/name> [--dry-run-image <registry/path>] [--for-real]
 #
 # Requires VAP_GCP_PROJECT, VAP_GCP_REGION and VAP_EVIDENCE_BUCKET from the operator's private
 # configuration. Fails closed when they are missing; there is no local fallback. Optional:
@@ -26,7 +27,7 @@
 set -euo pipefail
 
 cmd="${1:-}"; shift || true
-SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; PACKAGES=""; DRY=1; DRYDST=""; CONFIG="examples/config/adapters.tutorial.json"
+SUITE=all; COMMIT=""; IMAGE=""; RUN=""; TEARDOWN=true; TESTED=""; IMAGES=""; IMAGE_COMMIT=""; HISTREF="--all"; STRICT=0; EXPIRES=""; DEPLOYER=""; PACKAGES=""; DRY=1; DRYDST=""; GHREPO=""; IMGDST=""; CONFIG="examples/config/adapters.tutorial.json"
 while [ $# -gt 0 ]; do
   case "$1" in
     --suite) SUITE="$2"; shift 2 ;;
@@ -45,6 +46,8 @@ while [ $# -gt 0 ]; do
     --packages) PACKAGES="$2"; shift 2 ;;
     --dry-run-image) DRYDST="$2"; shift 2 ;;
     --for-real) DRY=0; shift ;;
+    --repo) GHREPO="$2"; shift 2 ;;
+    --image-dst) IMGDST="$2"; shift 2 ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -149,9 +152,11 @@ case "$cmd" in
     [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "--image must be an immutable digest reference" >&2; exit 2; }
     [[ "$PACKAGES" =~ ^gs://[a-z0-9_./-]+[a-z0-9]$ ]] || { echo "--packages must be the gs:// directory holding the release artifacts" >&2; exit 2; }
     [ "$HISTREF" != "--all" ] || { echo "--history-ref <release branch> is required: only that branch's history is published" >&2; exit 2; }
+    [[ "$GHREPO" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || { echo "--repo must be <owner>/<repository>" >&2; exit 2; }
+    [[ "$IMGDST" =~ ^ghcr\.io/[a-z0-9-]+/[a-z0-9._-]+$ ]] || { echo "--image-dst must be ghcr.io/<owner>/<name>, without tag or digest" >&2; exit 2; }
     if [ "$DRY" = 0 ]; then
       [[ "${VAP_GITHUB_SECRET:-}" =~ ^projects/[^/]+/secrets/[^/]+/versions/[^/]+$ && "${VAP_NPM_SECRET:-}" =~ ^projects/[^/]+/secrets/[^/]+/versions/[^/]+$ ]]         || { echo "--for-real needs VAP_GITHUB_SECRET and VAP_NPM_SECRET (secret version resource names)" >&2; exit 2; }
     fi
-    archive history; submit infra/gcp/cloudbuild.publish.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE,_PACKAGES=$PACKAGES,_DRY_RUN=$DRY,_DRYRUN_IMAGE_DST=$DRYDST,_GITHUB_SECRET=${VAP_GITHUB_SECRET:-},_NPM_SECRET=${VAP_NPM_SECRET:-}" ;;
-  *) sed -n '2,24p' "$0"; exit 2 ;;
+    archive history; submit infra/gcp/cloudbuild.publish.yaml "_RUN_ID=$RUN_ID,_COMMIT_SHA=$COMMIT,_IMAGE=$IMAGE,_PACKAGES=$PACKAGES,_DRY_RUN=$DRY,_DRYRUN_IMAGE_DST=$DRYDST,_GITHUB_REPO=$GHREPO,_IMAGE_DST=$IMGDST,_GITHUB_SECRET=${VAP_GITHUB_SECRET:-},_NPM_SECRET=${VAP_NPM_SECRET:-}" ;;
+  *) sed -n '2,26p' "$0"; exit 2 ;;
 esac
