@@ -52,8 +52,9 @@ Use it in your own project:
 npm install @verified-action-protocol/sdk@0.1.0-rc.1
 ```
 
-Node.js 24 is required. Release candidates are published under the `next` dist-tag, so name the
-version. **Do not install `@vap/*`:** that npm scope belongs to an unrelated publisher.
+Node.js 24 is required. Name the version: release candidates are published under the `next`
+dist-tag (`0.1.0-rc.1` is also `latest`, as the first release), and each package also lists an
+npm staging placeholder, `0.0.0-stage`, which is not VAP code. **Do not install `@vap/*`:** that npm scope belongs to an unrelated publisher.
 
 ## Authentication
 

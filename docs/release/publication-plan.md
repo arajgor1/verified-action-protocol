@@ -359,3 +359,34 @@ version, and reports exactly what was published.
 hold identical content and stops on any that differ. A published npm version is never
 unpublished or reused; a wrong one is superseded by a new version.
 
+## 10. Publication record (2026-10-28 to 2026-10-29)
+
+The owner approved the sequence in section 9 for source commit `6568bda` and the accepted image
+digest. What was published:
+
+| Target | Result |
+|---|---|
+| Container image | `ghcr.io/arajgor1/verified-action-protocol:0.1.0-rc.1`, digest `sha256:d79c04bd44775e65750fe909f3194ca74ef9c796f10e8995aedb6a9d2c864849` (preserved by the copy; Cloud Build `e202e7db`). Made public by the owner |
+| Source | `main` and tag `v0.1.0-rc.1` at `6568bda3e9b7343e1eea407c68ca4ed80bb3f6ca` (`e202e7db`; history identifier scan of 37 commits, clean). Repository made public |
+| GitHub prerelease | `v0.1.0-rc.1` with the release notes and the 12 files listed in section 9 (`e202e7db`) |
+| npm | the five `@verified-action-protocol/*@0.1.0-rc.1` packages, published by the owner from the release tarballs (checksums verified first). The registry integrity of each matches the release tarball, and each tarball downloaded from the registry has the release SHA-256. Dist-tags: `next` and `latest` both `0.1.0-rc.1` (`latest` is set automatically on a package's first release) |
+
+**What did not go as planned, in order:**
+1. A first readiness check found that a fine-grained GitHub token cannot push to the container
+   registry; a classic token with `write:packages` replaced it before anything was published.
+2. The publication build `e202e7db` published the image, source, tag and prerelease, then
+   failed in its npm step without publishing: `npm publish assets/<file>.tgz` read the path as a
+   GitHub `owner/repo` shorthand. Fixed in the pipeline (`./` prefix) after the tag.
+3. A rerun of the npm step with the fixed path was refused (`PUT 404`). npm no longer lets a
+   token create new packages directly in this setup (npm restricts 2FA-bypass granular tokens;
+   GitHub changelog of 2026-07-31). The owner published the five tarballs interactively with
+   2FA instead.
+4. Each package also has a `0.0.0-stage` version, created by npm's staged-publishing flow during
+   the owner's 2FA-approved publish. It is npm's placeholder, not VAP code; `latest` and `next`
+   point to `0.1.0-rc.1`.
+
+**Public check:** passed on the published image and npm packages (Cloud Build `a19a7891`,
+[quickstart-results.md](quickstart-results.md)).
+
+**Commits after the tag** change only the publication and quickstart pipelines (the two fixes
+above) and these records; the README, examples and Compose file are identical to `v0.1.0-rc.1`.

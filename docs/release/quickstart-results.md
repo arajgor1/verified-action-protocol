@@ -31,12 +31,13 @@ installed or built. Pipeline: `infra/gcp/cloudbuild.quickstart.yaml`, dispatched
 | `fd1bd623` | `d9e9845` | prepublication | **FAILED** in the connect example: the demo passed; `prepare` was refused (`FORBIDDEN`) because the example's grant ceiling (risk tier 1) was below `issues.create` (compensable, tier 2). Fixed in the example |
 | `44bd2c7e` | `6b375d1` | prepublication | **PASSED**: demo, hardening checks, connect example (`added 9 packages`, outcome `verified`), cleanup |
 | `5d858653` | `b55d1cc` | prepublication | **PASSED**, on the validated source commit: same checks |
+| `7f195838` | `6568bda` (tag `v0.1.0-rc.1`) | public | **FAILED** in the check, before running the demo: it selected the VAP image by the private registry path (`/vap@sha256:`), which the published name does not match. Fixed in the pipeline |
+| `a19a7891` | `da8865c` | public | **PASSED** with the published artifacts only: pulled `ghcr.io/arajgor1/verified-action-protocol@sha256:d79c04bd…2c864849` (revision `765be87`) without credentials; the demo showed the dropped response as `unknown`, then reconciled it to `verified` with exactly one destination write; `api`, `worker` and `fixture` ran as uid 1000 with no capabilities and `NoNewPrivs: 1`; the connect example installed `@verified-action-protocol/sdk@0.1.0-rc.1` from npm (`added 9 packages`) and reached `verified`; cleanup left nothing behind. `da8865c` differs from the tag only in the two pipeline fixes |
 
 Commit `b55d1cc` is the validated source commit; it holds the final quickstart and connect
 files (the only change after `6b375d1` is the Compose file's default image reference, which the
 prepublication mode overrides and the public run uses).
 
-The `public` run is part of the publication sequence: it runs after the image and packages are
-published and its result is added here.
+The `public` run checks the published image and npm packages; `a19a7891` above is its result.
 
 **Cost:** about 4 build-minutes per run on the default machine type.
