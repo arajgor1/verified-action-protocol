@@ -46,7 +46,8 @@ steps:
         set -euo pipefail
         if [ -n "${_IMAGE}" ]; then export VAP_IMAGE="${_IMAGE}"; fi
         C="docker compose -f examples/quickstart/compose.yaml"
-        ref=$$($$C config --images | grep '/vap@sha256:' | sort -u)
+        # The private release path ends in /vap, the published one in /verified-action-protocol.
+        ref=$$($$C config --images | grep -E '/(vap|verified-action-protocol)@sha256:' | sort -u)
         case "$$ref" in *@${_EXPECTED_DIGEST}) ;; *) echo "compose image $$ref is not the accepted digest" >&2; exit 1 ;; esac
         docker pull -q "$$ref" >/dev/null
         docker image inspect "$$ref" --format 'image {{index .RepoDigests 0}} revision {{index .Config.Labels "org.opencontainers.image.revision"}} user {{.Config.User}}' | tee reports/image.txt
