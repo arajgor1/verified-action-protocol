@@ -73,6 +73,11 @@ write is found and the result is verified without another submission. If the des
 establish the outcome, the operation remains `unknown`. VAP does not promise exactly-once side
 effects for every tool; it depends on what the connected tool lets it look up and read back.
 
+![Terminal recording of the quickstart demo: the dropped response is reported as unknown, reconciled, and verified with one destination write](docs/assets/demo-lost-response.gif)
+
+<sub>Real output of the quickstart demo against the synthetic issue tracker, cut to this part and paced
+for reading. The next section shows how to run it yourself.</sub>
+
 ## Try VAP
 
 You need Docker with Compose v2 and an internet connection. No build, and no GitHub, model or
