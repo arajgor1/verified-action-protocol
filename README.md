@@ -9,7 +9,7 @@ and recovering when outcomes are uncertain.
 
 *Experimental release 0.1.0-rc.1 · TypeScript SDK · HTTP and command adapters · MCP bridge · Apache-2.0*
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24048799.svg)](https://doi.org/10.5281/zenodo.24048799)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24049563.svg)](https://doi.org/10.5281/zenodo.24049563)
 
 [Try the demo](#try-vap) · [Connect your application](docs/connect.md) · [Read the protocol](docs/protocol/overview.md)
 
