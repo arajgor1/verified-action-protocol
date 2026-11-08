@@ -1,0 +1,19 @@
+{
+  "$comment": "CI-failure demo against real GitHub through the test-only fault proxy on loopback (hence allow_private_network, honoured only in isolated test mode). The repository must be an owner-approved, dedicated demo repository, set with VAP_GITHUB_REPOSITORY. Credentials are a GitHub App installation scoped to that repository; set VAP_GITHUB_AUTHOR_LOGIN to the app's bot login (<app-slug>[bot]) so only its own issues can satisfy a lookup; the three variables are populated from a secret store at run time and never written to files.",
+  "github": {
+    "id": "github.issues",
+    "api_base_url": "http://127.0.0.1:8090",
+    "repository": "set-by-operator/set-by-operator",
+    "auth": {
+      "type": "github_app",
+      "app_id_env": "VAP_GITHUB_APP_ID",
+      "installation_id_env": "VAP_GITHUB_APP_INSTALLATION_ID",
+      "private_key_env": "VAP_GITHUB_APP_PRIVATE_KEY"
+    },
+    "allow_private_network": true,
+    "timeout_ms": 20000,
+    "lookup_max_pages": 3,
+    "lookup_window_seconds": 7200,
+    "author_login": "set-by-operator[bot]"
+  }
+}

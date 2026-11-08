@@ -1,0 +1,55 @@
+# Release manifest check: from the archive's git history bundle, confirms that everything after
+# the tested runtime commit is documentation-only and that documented commands exist in the
+# tested commit, then records release-manifest.json.
+#
+#   bash scripts/vap-cloud.sh manifest --tested <sha> --images <ref@sha256:...+ref@sha256:...> [--commit <final sha>]
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _TESTED_COMMIT: unknown
+  _IMAGES: ""
+  _EVIDENCE_BUCKET: set-by-operator
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+
+timeout: 600s
+tags: ["vap", "vap-manifest", "run-${_RUN_ID}"]
+
+steps:
+  - id: archive-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: manifest
+    name: ${_NODE}
+    entrypoint: bash
+    env: ["TESTED=${_TESTED_COMMIT}", "IMAGES=${_IMAGES}"]
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        mkdir -p reports
+        test -f history.bundle || { echo "history bundle missing; run via vap-cloud.sh manifest"; exit 1; }
+        git clone --quiet --mirror history.bundle /tmp/history.git
+        rm -f history.bundle
+        node scripts/release-manifest.mjs --repo /tmp/history.git --tested "$$TESTED" --final "${_COMMIT_SHA}" --images "$$IMAGES" --out reports 2>&1 | tee reports/manifest.log
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: node
+    env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=manifest"]
+    args: ["scripts/evidence.mjs", "reports"]
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/manifests/${_RUN_ID}/
+    paths: ["reports/*"]

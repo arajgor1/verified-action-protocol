@@ -1,0 +1,12 @@
+{
+  "$comment": "Non-secret CLI configuration example. Copy to vap.config.json (git-ignored values stay private to the operator). Never put credentials or paths to credential files here; authentication comes from workload identity or your own short-lived gcloud login.",
+  "endpoint": "https://<your-vap-api-url>",
+  "audience": "https://<your-vap-api-url>",
+  "gcp": {
+    "project": "<your-project-id>",
+    "region": "<your-region>",
+    "evidence_bucket": "<your-private-evidence-bucket>"
+  },
+  "timeouts": { "request_ms": 60000 },
+  "log_level": "info"
+}

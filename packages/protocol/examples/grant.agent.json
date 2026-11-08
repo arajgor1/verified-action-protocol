@@ -1,0 +1,25 @@
+{
+  "protocol_version": "0.1",
+  "id": "grt_demo0000000000000001",
+  "principal": "agent@example-project.iam.gserviceaccount.com",
+  "allowed_actions": [
+    "issues.*"
+  ],
+  "allowed_targets": [
+    "issue://issue-tracker/*"
+  ],
+  "risk_ceiling": 2,
+  "preauthorized_actions": [
+    "issues.create"
+  ],
+  "limits": {
+    "max_operations": 1000,
+    "max_items_per_operation": 20,
+    "max_concurrent_operations": 10
+  },
+  "expires_at": "2026-10-23T14:00:00.000Z",
+  "revocation_revision": 0,
+  "revoked_at": null,
+  "issuer": "operator@example.com",
+  "created_at": "2026-10-22T14:00:00.000Z"
+}

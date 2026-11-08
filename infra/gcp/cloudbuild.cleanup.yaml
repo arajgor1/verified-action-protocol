@@ -1,0 +1,39 @@
+# Janitor: removes Cloud Run services/jobs and scheduler jobs labeled with one VAP run id,
+# and reports each deleted, retained or failed resource. It only lists resources carrying the
+# vap-run label it was given; it never discovers or deletes unrelated project resources.
+substitutions:
+  _RUN_ID: set-by-caller
+  _EVIDENCE_BUCKET: set-by-operator
+  _GCLOUD: gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+timeout: 900s
+tags: ["vap", "vap-cleanup", "run-${_RUN_ID}"]
+steps:
+  - id: cleanup
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        [[ "${_RUN_ID}" =~ ^[a-z0-9-]{1,63}$ ]] || { echo "invalid run id"; exit 1; }
+        mkdir -p reports
+        F="labels.vap-run=${_RUN_ID}"
+        for s in $$(gcloud run services list --region=${LOCATION} --filter="$$F" --format='value(metadata.name)'); do
+          gcloud run services delete "$$s" --region=${LOCATION} --quiet && echo "deleted service $$s" || echo "failed service $$s"
+        done | tee -a reports/cleanup.txt
+        for j in $$(gcloud run jobs list --region=${LOCATION} --filter="$$F" --format='value(metadata.name)'); do
+          gcloud run jobs delete "$$j" --region=${LOCATION} --quiet && echo "deleted job $$j" || echo "failed job $$j"
+        done | tee -a reports/cleanup.txt
+        echo "retained: Cloud SQL, secrets and evidence (persistent; see infra/gcp/teardown.sh)" | tee -a reports/cleanup.txt
+        # Each deletion is attempted and reported; any failure fails the build afterwards.
+        if grep -q '^failed ' reports/cleanup.txt; then echo "cleanup incomplete"; exit 1; fi
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/cleanup/${_RUN_ID}/
+    paths: ["reports/*"]

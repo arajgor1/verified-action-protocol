@@ -1,0 +1,90 @@
+# Removes everything one managed staging exercise created (cloudbuild.managed-provision.yaml and
+# cloudbuild.deploy.yaml), then verifies by listing that nothing remains. Idempotent: safe to run
+# again, and run by the operator's teardown deadline even when the deploy build failed or hung.
+# Only resources with the exercise's fixed names are touched; nothing else is discovered or
+# deleted. The evidence bucket and the Artifact Registry images are kept (release records).
+#
+#   bash scripts/vap-cloud.sh managed-teardown
+substitutions:
+  _RUN_ID: manual
+  _ENVIRONMENT: staging
+  _EVIDENCE_BUCKET: set-by-operator
+  _GCLOUD: gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
+    - E=${_ENVIRONMENT}
+    - P=${PROJECT_ID}
+    - R=${LOCATION}
+
+timeout: 1800s
+tags: ["vap", "vap-managed-teardown", "run-${_RUN_ID}"]
+
+steps:
+  - id: delete
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        [[ "$$E" =~ ^[a-z][a-z0-9-]{1,20}$$ ]] || { echo "invalid environment"; exit 1; }
+        mkdir -p /workspace/reports
+        exec > >(tee /workspace/reports/teardown.log) 2>&1
+        report() { printf '%-9s %s\n' "$$1" "$$2"; }
+        # del <description> <describe command...> -- <delete command...>: absent counts as done.
+        del() {
+          local what="$$1"; shift; local d=() x=()
+          while [ "$$1" != "--" ]; do d+=("$$1"); shift; done; shift; x=("$$@")
+          if ! "$${d[@]}" >/dev/null 2>&1; then report absent "$$what"; return 0; fi
+          if "$${x[@]}" --quiet >/dev/null 2>&1; then report deleted "$$what"; else report FAILED "$$what"; fi
+        }
+        for s in "vap-api-$$E" "vap-fixture-$$E"; do del "run service $$s" gcloud run services describe "$$s" --region="$$R" -- gcloud run services delete "$$s" --region="$$R"; done
+        for j in "vap-worker-$$E" "vap-sweeper-$$E" "vap-migrate-$$E"; do del "run job $$j" gcloud run jobs describe "$$j" --region="$$R" -- gcloud run jobs delete "$$j" --region="$$R"; done
+        del "scheduler job vap-sweeper-$$E" gcloud scheduler jobs describe "vap-sweeper-$$E" --location="$$R" -- gcloud scheduler jobs delete "vap-sweeper-$$E" --location="$$R"
+        del "sql instance vap-$$E (no final backup)" gcloud sql instances describe "vap-$$E" -- gcloud sql instances delete "vap-$$E"
+        for s in database-url migration-database-url fixture-database-url digest-key; do del "secret vap-$$E-$$s" gcloud secrets describe "vap-$$E-$$s" -- gcloud secrets delete "vap-$$E-$$s"; done
+        # Project-level bindings before the accounts, so no deleted:serviceAccount entries linger.
+        for a in vap-api vap-worker vap-migrator vap-fixture; do
+          m="serviceAccount:$$a@$$P.iam.gserviceaccount.com"
+          if gcloud projects get-iam-policy "$$P" --flatten=bindings --filter="bindings.members:$$m" --format='value(bindings.role)' | grep -q .; then
+            for role in $$(gcloud projects get-iam-policy "$$P" --flatten=bindings --filter="bindings.members:$$m" --format='value(bindings.role)' | sort -u); do
+              gcloud projects remove-iam-policy-binding "$$P" --member="$$m" --role="$$role" --all >/dev/null 2>&1 && report removed "project binding $$role for $$a" || report FAILED "project binding $$role for $$a"
+            done
+          else report absent "project bindings for $$a"; fi
+        done
+        for a in vap-api vap-worker vap-migrator vap-fixture vap-scheduler vap-smoke; do
+          del "service account $$a (and the bindings on it)" gcloud iam service-accounts describe "$$a@$$P.iam.gserviceaccount.com" -- gcloud iam service-accounts delete "$$a@$$P.iam.gserviceaccount.com"
+        done
+
+  - id: verify
+    name: ${_GCLOUD}
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        exec > >(tee -a /workspace/reports/teardown.log) 2>&1
+        echo "--- verification by listing"
+        left=""
+        add() { [ -n "$$2" ] && { echo "REMAINS  $$1: $$2"; left="$$left $$1"; } || echo "none     $$1"; }
+        add "run services" "$$(gcloud run services list --region="$$R" --format='value(metadata.name)' | grep -E "^vap-(api|fixture)-$$E$$" | tr '\n' ' ')"
+        add "run jobs" "$$(gcloud run jobs list --region="$$R" --format='value(metadata.name)' | grep -E "^vap-(worker|sweeper|migrate)-$$E$$" | tr '\n' ' ')"
+        add "scheduler jobs" "$$(gcloud scheduler jobs list --location="$$R" --format='value(name)' | grep -E "/vap-sweeper-$$E$$" | tr '\n' ' ')"
+        add "sql instances" "$$(gcloud sql instances list --format='value(name)' | grep -E "^vap-$$E$$" | tr '\n' ' ')"
+        add "secrets" "$$(gcloud secrets list --format='value(name)' | grep -E "(^|/)vap-$$E-" | tr '\n' ' ')"
+        add "service accounts" "$$(gcloud iam service-accounts list --format='value(email)' | grep -E '^vap-(api|worker|migrator|fixture|scheduler|smoke)@' | tr '\n' ' ')"
+        add "project bindings" "$$(gcloud projects get-iam-policy "$$P" --flatten=bindings --format='value(bindings.members)' | tr ';,' '\n\n' | grep -E 'vap-(api|worker|migrator|fixture|scheduler|smoke)@' | sort -u | tr '\n' ' ')"
+        echo "retained by design: evidence bucket objects and Artifact Registry images (release records)"
+        # Explicit upload as well: `artifacts` are stored only for successful builds.
+        [ -z "$$left" ] || { sleep 1; gcloud storage cp /workspace/reports/teardown.log "gs://${_EVIDENCE_BUCKET}/managed/${_ENVIRONMENT}/${_RUN_ID}/teardown/teardown-incomplete.log" >/dev/null 2>&1; }
+        [ -z "$$left" ] || { echo "teardown incomplete:$$left"; exit 1; }
+        echo "teardown complete: nothing created by the exercise remains"
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/managed/${_ENVIRONMENT}/${_RUN_ID}/teardown/
+    paths: ["reports/*"]

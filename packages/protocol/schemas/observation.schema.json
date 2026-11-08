@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/observation.schema.json",
+  "title": "Observation",
+  "description": "State read from a destination through a registered adapter. Facts are untrusted data. Unknowns list what the adapter could not establish.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "id", "resource_uri", "observed_at", "source", "source_version", "freshness", "facts", "unknowns", "completeness", "limits", "next_cursor"],
+  "properties": {
+    "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "resource_uri": { "$ref": "common.schema.json#/$defs/resource_uri" },
+    "observed_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "source": { "type": "string", "maxLength": 256 },
+    "source_version": { "$ref": "common.schema.json#/$defs/source_version" },
+    "freshness": { "type": "string", "enum": ["fresh", "cached", "unknown"] },
+    "facts": { "type": "object" },
+    "unknowns": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 512 } },
+    "completeness": { "type": "string", "enum": ["complete", "partial", "truncated"] },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bytes", "max_bytes", "estimated_tokens", "truncated"],
+      "properties": {
+        "bytes": { "type": "integer", "minimum": 0 },
+        "max_bytes": { "type": "integer", "minimum": 1 },
+        "estimated_tokens": { "type": "integer", "minimum": 0, "description": "Estimate (bytes/4). Exact tokenizer budgets are not promised." },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "next_cursor": { "type": ["string", "null"], "maxLength": 512 },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" }
+  }
+}

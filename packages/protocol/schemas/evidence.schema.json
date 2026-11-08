@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/evidence.schema.json",
+  "title": "Evidence",
+  "description": "The result of evaluating one named check, or one item of an each_effect check, against observed state. Missing evidence is never a pass. A verifier in the same process is not organizational or cryptographic independence; the independence field states which kind applies.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "id", "operation_id", "task_id", "task_revision", "check_id", "item_index", "verifier_id", "verifier_version", "method", "observed_at", "result", "source", "source_version", "freshness", "observed_facts", "artifact_ref", "limitations", "attributed_to", "independence", "created_at"],
+  "properties": {
+    "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "operation_id": { "$ref": "common.schema.json#/$defs/id" },
+    "task_id": { "$ref": "common.schema.json#/$defs/id" },
+    "task_revision": { "type": "integer", "minimum": 1 },
+    "check_id": { "$ref": "common.schema.json#/$defs/check_id" },
+    "item_index": { "type": ["integer", "null"], "minimum": 0 },
+    "verifier_id": { "type": "string", "maxLength": 64 },
+    "verifier_version": { "type": "string", "maxLength": 64 },
+    "method": { "$ref": "common.schema.json#/$defs/check_method" },
+    "observed_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "result": { "$ref": "common.schema.json#/$defs/check_result" },
+    "source": { "type": "string", "maxLength": 256 },
+    "source_version": { "$ref": "common.schema.json#/$defs/source_version" },
+    "freshness": {
+      "type": "string",
+      "enum": ["fresh", "stale", "unknown"],
+      "description": "Whether the read is known to reflect state at or after the version the operation reported."
+    },
+    "observed_facts": { "type": "object", "description": "Redacted, allowlisted projection of the facts the predicate was evaluated against." },
+    "artifact_ref": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["digest", "object_id", "bytes"],
+          "properties": {
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "object_id": { "type": "string", "maxLength": 512 },
+            "bytes": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "limitations": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 512 } },
+    "attributed_to": { "anyOf": [{ "$ref": "common.schema.json#/$defs/principal" }, { "type": "null" }] },
+    "independence": { "type": "string", "enum": ["same_process", "separate_process", "human"] },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" }
+  }
+}

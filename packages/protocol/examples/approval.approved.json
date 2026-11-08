@@ -1,0 +1,20 @@
+{
+  "protocol_version": "0.1",
+  "id": "apv_demo0000000000000001",
+  "plan_id": "pln_demo0000000000000005",
+  "plan_digest": "hmac-sha256:5f0c7e2a9b1d4c6e8f0a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d1e",
+  "decision": "approved",
+  "approver": "reviewer@example.com",
+  "approved_scope": {
+    "action_id": "issues.create_and_notify",
+    "risk_tier": 3,
+    "resource_uris": [
+      "issue://issue-tracker/issues/*"
+    ]
+  },
+  "created_at": "2026-10-22T14:00:00.000Z",
+  "expires_at": "2026-10-22T14:04:00.000Z",
+  "single_use": true,
+  "consumed_by_operation_id": null,
+  "note": "Notification text reviewed"
+}

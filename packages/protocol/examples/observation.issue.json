@@ -1,0 +1,27 @@
+{
+  "protocol_version": "0.1",
+  "id": "obs_demo0000000000000001",
+  "resource_uri": "issue://issue-tracker/issues/1001",
+  "observed_at": "2026-10-22T14:00:00.000Z",
+  "source": "http.issue_tracker:readback",
+  "source_version": "17",
+  "freshness": "unknown",
+  "facts": {
+    "exists": true,
+    "id": "1001",
+    "title": "Login page times out",
+    "owner": "alice",
+    "status": "open",
+    "priority": "medium",
+    "version": 17
+  },
+  "unknowns": [],
+  "completeness": "complete",
+  "limits": {
+    "bytes": 121,
+    "max_bytes": 65536,
+    "estimated_tokens": 31,
+    "truncated": false
+  },
+  "next_cursor": null
+}

@@ -1,0 +1,62 @@
+# Browser-image linkage inspection: runs scripts/browser-linkage.mjs inside a worker-browser image
+# pulled by digest (with that image's own Playwright and Chromium) and records which system
+# libraries Chromium links and actually maps while rendering, which packages with open CVEs are
+# only installed, whether specific vulnerable code is present, and which daemons exist or run.
+#
+#   bash scripts/vap-cloud.sh browser-linkage --image <registry>/vap/vap-worker-browser@sha256:<digest> --image-commit <sha>
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _IMAGE: set-by-operator
+  _IMAGE_COMMIT: unknown
+  _EVIDENCE_BUCKET: set-by-operator
+  _PACKAGES: zlib1g,libsqlite3-0,libglib2.0-0,libxml2,libharfbuzz0b,libssl3,libcups2,libx11-6,libxrender1,xserver-common,xvfb,libtinfo6,gzip,perl-base,libacl1,libsystemd0,libudev1,util-linux,libmount1,libblkid1
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+    - VAP_IMAGE_DIGEST=${_IMAGE}
+
+timeout: 900s
+tags: ["vap", "vap-browser-linkage", "run-${_RUN_ID}"]
+
+steps:
+  - id: source-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: inspect
+    name: ${_DOCKER}
+    entrypoint: bash
+    env: ["IMAGE=${_IMAGE}", "IMAGE_COMMIT=${_IMAGE_COMMIT}", "PKGS=${_PACKAGES}"]
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        case "$$IMAGE" in *@sha256:*) ;; *) echo "_IMAGE must be a digest reference"; exit 1;; esac
+        docker pull "$$IMAGE"
+        rev=$$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$$IMAGE")
+        echo "image revision label: $$rev"
+        [ -z "$$rev" ] || [ "$$rev" = "$$IMAGE_COMMIT" ] || { echo "image was not built from $$IMAGE_COMMIT"; exit 1; }
+        mkdir -p reports
+        docker run --rm -u 0 -v /workspace:/w -e VAP_CLOUD_EXECUTION=1 --entrypoint node "$$IMAGE" \
+          /w/scripts/browser-linkage.mjs /w/reports/browser-linkage.json "$$PKGS" 2>&1 | tee reports/browser-linkage.log
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: node
+    env: ["BUILD_ID=$BUILD_ID", "VAP_SUITE=browser-linkage"]
+    args: ["scripts/evidence.mjs", "reports"]
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/browser-linkage/${_RUN_ID}/
+    paths: ["reports/*"]

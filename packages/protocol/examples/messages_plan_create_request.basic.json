@@ -1,0 +1,9 @@
+{
+  "protocol_version": "0.1",
+  "task_id": "tsk_demo0000000000000001",
+  "action_id": "issues.update_owner",
+  "arguments": {
+    "issue_id": "1001",
+    "owner": "bob"
+  }
+}

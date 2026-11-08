@@ -1,0 +1,69 @@
+{
+  "protocol_version": "0.1",
+  "id": "issues.update_owner",
+  "title": "Change the owner of an issue (native conditional write)",
+  "adapter": {
+    "id": "http.issue_tracker",
+    "version": "0.1.0+cfg.3a1f9c2b7d40"
+  },
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "issue_id",
+      "owner"
+    ],
+    "properties": {
+      "issue_id": {
+        "type": "string",
+        "pattern": "^[0-9]{1,18}$"
+      },
+      "owner": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+      }
+    }
+  },
+  "effect_scope": {
+    "resource_template": "issue://issue-tracker/issues/{args.issue_id}",
+    "description": "the owner field of the issue"
+  },
+  "preconditions": [],
+  "side_effects": [
+    {
+      "id": "owner_changed",
+      "description": "issue owner updated",
+      "class": "remote_reversible",
+      "bounded": true
+    }
+  ],
+  "risk_tier": 1,
+  "capabilities": {
+    "state_source": "eventually_consistent_api",
+    "concurrency_mode": "native_conditional",
+    "preview_fidelity": "estimate",
+    "retry_mode": "destination_dedup",
+    "recovery_modes": [
+      "compensate"
+    ],
+    "verification_methods": [
+      "read_back"
+    ],
+    "attribution_mode": "explicit_request_id",
+    "execution_isolation": "none"
+  },
+  "verifier_ids": [
+    "http.readback"
+  ],
+  "recovery_modes": [
+    {
+      "mode": "compensate",
+      "action_id": "issues.update_owner",
+      "description": "set the owner back to the value captured at preparation"
+    }
+  ],
+  "plan_ttl_seconds": 300,
+  "limits": {
+    "max_items": null
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/event.schema.json",
+  "title": "Operation event",
+  "description": "Append-only journal entry. (operation_id, sequence) is unique and sequence is monotonic per operation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "operation_id", "sequence", "type", "at", "actor", "data"],
+  "properties": {
+    "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+    "operation_id": { "$ref": "common.schema.json#/$defs/id" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "type": {
+      "type": "string",
+      "enum": [
+        "operation.accepted",
+        "dispatch.denied",
+        "dispatch.intent",
+        "dispatch.result",
+        "dispatch.claim_lost",
+        "reconcile.started",
+        "reconcile.result",
+        "verification.started",
+        "verification.result",
+        "cancel.requested",
+        "cancel.result",
+        "recovery.requested",
+        "recovery.linked",
+        "recovery.result",
+        "grant.revoked_after_dispatch",
+        "operator.resolution_required",
+        "claim.expired"
+      ]
+    },
+    "at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "actor": { "type": "string", "maxLength": 320 },
+    "data": { "type": "object" }
+  }
+}

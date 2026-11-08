@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/plan.schema.json",
+  "title": "Plan",
+  "description": "Immutable, expiring preparation of one action. The digest (keyed HMAC-SHA256 over the canonical JSON of the bound fields) is what approvals bind to. status and approval.state are evaluated at read time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "id", "task_id", "task_revision", "action_id", "adapter", "principal", "grant_id", "canonical_arguments", "resource_conditions", "preview", "risk_tier", "required_checks", "policy_revision", "grant_revocation_revision", "digest", "created_at", "expires_at", "status", "approval", "recovery_of"],
+  "properties": {
+    "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "task_id": { "$ref": "common.schema.json#/$defs/id" },
+    "task_revision": { "type": "integer", "minimum": 1 },
+    "action_id": { "$ref": "common.schema.json#/$defs/action_id" },
+    "adapter": { "$ref": "action.schema.json#/$defs/adapter_ref" },
+    "principal": { "$ref": "common.schema.json#/$defs/principal" },
+    "grant_id": { "$ref": "common.schema.json#/$defs/id" },
+    "canonical_arguments": { "type": "object" },
+    "resource_conditions": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["resource_uri", "expected_version", "enforcement"],
+        "properties": {
+          "resource_uri": { "$ref": "common.schema.json#/$defs/resource_uri" },
+          "expected_version": { "$ref": "common.schema.json#/$defs/source_version" },
+          "enforcement": {
+            "description": "native: the destination rejects the write if the version changed. best_effort: VAP re-reads before writing and a concurrent writer can still interleave. none: no condition.",
+            "type": "string",
+            "enum": ["native", "best_effort", "none"]
+          }
+        }
+      }
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fidelity", "summary", "effects"],
+      "properties": {
+        "fidelity": { "$ref": "common.schema.json#/$defs/preview_fidelity" },
+        "summary": { "type": "string", "maxLength": 4000 },
+        "effects": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["side_effect_id", "class", "description", "item_count"],
+            "properties": {
+              "side_effect_id": { "$ref": "common.schema.json#/$defs/check_id" },
+              "class": { "$ref": "common.schema.json#/$defs/side_effect_class" },
+              "description": { "$ref": "common.schema.json#/$defs/short_text" },
+              "item_count": { "type": ["integer", "null"], "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "risk_tier": { "$ref": "common.schema.json#/$defs/risk_tier" },
+    "required_checks": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/check" } },
+    "policy_revision": { "type": "string", "maxLength": 128 },
+    "grant_revocation_revision": { "type": "integer", "minimum": 0 },
+    "digest": { "type": "string", "pattern": "^hmac-sha256:[0-9a-f]{64}$" },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "status": { "$ref": "common.schema.json#/$defs/plan_status" },
+    "status_reasons": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 512 } },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "reason", "state", "approval_id"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reason": { "type": ["string", "null"], "maxLength": 512 },
+        "state": { "type": "string", "enum": ["not_required", "pending", "approved", "denied", "expired", "consumed"] },
+        "approval_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/id" }, { "type": "null" }] }
+      }
+    },
+    "recovery_of": { "anyOf": [{ "$ref": "common.schema.json#/$defs/id" }, { "type": "null" }] },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" }
+  }
+}

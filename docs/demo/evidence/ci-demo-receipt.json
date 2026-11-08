@@ -1,0 +1,114 @@
+{
+  "steps": {
+    "start": true,
+    "uncertainty_reported": true,
+    "no_blind_retry_while_invisible": true,
+    "resumed_same_operation": true,
+    "reconciliation_found_issue": true,
+    "content_verified": true,
+    "create_accepted_response_lost": true,
+    "one_matching_issue": true
+  },
+  "receipt": {
+    "protocol_version": "0.1",
+    "operation_id": "op_Z7pAn7xAl5JaQKd9u4gR",
+    "task_id": "tsk_b5XyZZwsp8cQwQe80POA",
+    "action_id": "github.issues.create_ci_failure",
+    "outcome": "verified",
+    "execution_status": "completed",
+    "verification_status": "passed",
+    "recovery_status": "none",
+    "unresolved": false,
+    "effects": [
+      {
+        "detail": "origin inferred, not proven",
+        "status": "applied",
+        "item_index": null,
+        "resource_uri": "github://vap-demo/ci-failures/issues/1",
+        "side_effect_id": "issue_created",
+        "source_version": "2026-10-23T08:42:28.427Z"
+      }
+    ],
+    "checks": [
+      {
+        "id": "issue.content",
+        "result": "pass",
+        "method": "read_back",
+        "source": "github.issues:readback",
+        "source_version": "2026-10-23T08:42:28.427Z",
+        "evidence_id": "evd_YZTvazz9qFim7gDJaCsA",
+        "observed_at": "2026-10-23T08:42:32.789Z",
+        "item_index": null
+      },
+      {
+        "id": "issue.unique",
+        "result": "pass",
+        "method": "read_back",
+        "source": "github.issues:marker-scan",
+        "source_version": null,
+        "evidence_id": "evd_PaZDyuUon6L7wkK1hXPE",
+        "observed_at": "2026-10-23T08:42:32.799Z",
+        "item_index": null
+      }
+    ],
+    "unverified_effects": [
+      "GitHub may notify repository watchers; notifications cannot be recalled (not observable by this adapter)"
+    ],
+    "recovery": {
+      "modes": [],
+      "available": false,
+      "status": "none",
+      "recovery_operation_ids": []
+    },
+    "retry_guidance": {
+      "disposition": "do_not_retry",
+      "explanation": "Completed and every bound check passed."
+    },
+    "generated_at": "2026-10-23T08:42:33.025Z"
+  },
+  "operation": {
+    "protocol_version": "0.1",
+    "id": "op_Z7pAn7xAl5JaQKd9u4gR",
+    "plan_id": "pln_GVjZiimrqbTazEcfFykW",
+    "task_id": "tsk_b5XyZZwsp8cQwQe80POA",
+    "action_id": "github.issues.create_ci_failure",
+    "principal": "demo-agent",
+    "request_key_digest": "hmac-sha256:b8059567b5f7b8e781d7490497cf09d1ab00147e790a6b0501e0e3ede32713ab",
+    "execution_status": "completed",
+    "verification_status": "passed",
+    "recovery_status": "none",
+    "outcome": "verified",
+    "result_summary": {
+      "title": "[CI failure] parses hours with minutes @ 61ed3b224dd6",
+      "number": 1,
+      "origin": "inferred_from_lookup",
+      "html_url": "https://fixture-github.invalid/vap-demo/ci-failures/issues/1",
+      "repository": "vap-demo/ci-failures",
+      "origin_note": "found after a lost reply: expected repository, adapter identity, workflow marker, planned title and body, created after acceptance; creation by this operation is consistent with but not proven by that evidence",
+      "workflow_id": "vapwf-f4016d917b8e79f3b1913c07",
+      "matching_issue_count": 1
+    },
+    "effects": [
+      {
+        "detail": "origin inferred, not proven",
+        "status": "applied",
+        "item_index": null,
+        "resource_uri": "github://vap-demo/ci-failures/issues/1",
+        "side_effect_id": "issue_created",
+        "source_version": "2026-10-23T08:42:28.427Z"
+      }
+    ],
+    "attempts": 1,
+    "external_handle": "https://fixture-github.invalid/vap-demo/ci-failures/issues/1",
+    "cancel_requested": false,
+    "recovers_operation_id": null,
+    "recovery_operation_ids": [],
+    "unresolved": false,
+    "error": null,
+    "created_at": "2026-10-23T08:42:28.382Z",
+    "updated_at": "2026-10-23T08:42:32.811Z",
+    "submitted_at": "2026-10-23T08:42:28.400Z",
+    "completed_at": "2026-10-23T08:42:32.692Z",
+    "row_revision": 10
+  }
+}

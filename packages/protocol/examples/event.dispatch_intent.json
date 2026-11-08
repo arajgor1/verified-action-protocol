@@ -1,0 +1,12 @@
+{
+  "protocol_version": "0.1",
+  "operation_id": "op_demo0000000000000001",
+  "sequence": 2,
+  "type": "dispatch.intent",
+  "at": "2026-10-22T14:00:00.000Z",
+  "actor": "worker:wk-vap-worker-7-1a2b3c4d",
+  "data": {
+    "attempt": 1,
+    "fence": 3
+  }
+}

@@ -1,0 +1,8 @@
+# Ownership for reviews. Authorization, idempotency, reconciliation, migration and release
+# code needs a reviewer other than the implementer (see GOVERNANCE.md).
+*                               @arajgor1
+/packages/core/                 @arajgor1
+/packages/store-postgres/       @arajgor1
+/apps/api/src/auth.ts           @arajgor1
+/infra/                         @arajgor1
+/scripts/release-hygiene.mjs    @arajgor1

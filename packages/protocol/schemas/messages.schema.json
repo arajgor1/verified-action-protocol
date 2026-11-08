@@ -1,0 +1,417 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/messages.schema.json",
+  "title": "VAP 0.1 method request and response bodies",
+  "description": "Request bodies reject unknown fields. Identity is never read from a body: principal, approver and issuer always come from authentication.",
+  "$defs": {
+    "task_create_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "goal", "grant_id", "scope", "required_checks"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "grant_id": { "$ref": "common.schema.json#/$defs/id" },
+        "scope": { "$ref": "task.schema.json#/$defs/scope" },
+        "requirements": { "type": "array", "maxItems": 64, "items": { "$ref": "task.schema.json#/$defs/statement" } },
+        "assumptions": { "type": "array", "maxItems": 64, "items": { "$ref": "task.schema.json#/$defs/statement" } },
+        "required_checks": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/check" } },
+        "extensions": { "$ref": "common.schema.json#/$defs/extensions" }
+      }
+    },
+    "task_revise_request": {
+      "description": "Creates a new contract revision. A non-operator caller may only add checks and assumptions; removing or altering an existing user/operator check requires the operator role.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "expected_revision"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "expected_revision": { "type": "integer", "minimum": 1 },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "requirements": { "type": "array", "maxItems": 64, "items": { "$ref": "task.schema.json#/$defs/statement" } },
+        "assumptions": { "type": "array", "maxItems": 64, "items": { "$ref": "task.schema.json#/$defs/statement" } },
+        "required_checks": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/check" } }
+      }
+    },
+    "observation_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "task_id", "resource_uri"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "task_id": { "$ref": "common.schema.json#/$defs/id" },
+        "resource_uri": { "$ref": "common.schema.json#/$defs/resource_uri" },
+        "cursor": { "type": ["string", "null"], "maxLength": 512 },
+        "max_bytes": { "type": "integer", "minimum": 256, "maximum": 65536 }
+      }
+    },
+    "plan_create_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "task_id", "action_id", "arguments"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "task_id": { "$ref": "common.schema.json#/$defs/id" },
+        "action_id": { "$ref": "common.schema.json#/$defs/action_id" },
+        "arguments": { "type": "object", "maxProperties": 64 },
+        "check_ids": {
+          "description": "Task checks to bind to this plan. Defaults to every task check whose verifier the action declares.",
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "common.schema.json#/$defs/check_id" }
+        }
+      }
+    },
+    "operation_create_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "plan_id", "request_key"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "plan_id": { "$ref": "common.schema.json#/$defs/id" },
+        "request_key": {
+          "description": "Caller-chosen key scoped to deployment, authenticated principal and action. Identical repeats return the original operation; reuse with a different plan conflicts.",
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200,
+          "pattern": "^[\\x21-\\x7e]+$"
+        }
+      }
+    },
+    "verify_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "check_ids": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/check_id" } }
+      }
+    },
+    "operation_lookup_request": {
+      "description": "Finds the operation the authenticated principal submitted under a request key for an action, so a restarted agent resumes the same operation instead of creating a new one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "action_id", "request_key"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "action_id": { "$ref": "common.schema.json#/$defs/action_id" },
+        "request_key": { "type": "string", "minLength": 8, "maxLength": 200, "pattern": "^[\\x21-\\x7e]+$" }
+      }
+    },
+    "reconcile_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version"],
+      "properties": { "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" } }
+    },
+    "cancel_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "reason": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "recover_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "strategy", "request_key"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "strategy": { "$ref": "common.schema.json#/$defs/recovery_mode" },
+        "request_key": { "$ref": "#/$defs/operation_create_request/properties/request_key" }
+      }
+    },
+    "grant_create_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "principal", "allowed_actions", "allowed_targets", "risk_ceiling", "expires_at"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "principal": { "$ref": "common.schema.json#/$defs/principal" },
+        "allowed_actions": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/action_pattern" } },
+        "allowed_targets": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/resource_pattern" } },
+        "risk_ceiling": { "$ref": "common.schema.json#/$defs/risk_tier" },
+        "preauthorized_actions": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/action_pattern" } },
+        "limits": { "$ref": "grant.schema.json#/$defs/limits" },
+        "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "approval_create_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "plan_id", "plan_digest", "decision"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "plan_id": { "$ref": "common.schema.json#/$defs/id" },
+        "plan_digest": { "type": "string", "pattern": "^hmac-sha256:[0-9a-f]{64}$" },
+        "decision": { "type": "string", "enum": ["approved", "denied"] },
+        "expires_in_seconds": { "type": "integer", "minimum": 10, "maximum": 86400 },
+        "note": { "type": "string", "maxLength": 1024 }
+      }
+    },
+    "human_evidence_request": {
+      "description": "Operator-only. Records an explicitly attributed human judgment; never relabeled as deterministic verification.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "operation_id", "check_id", "result", "note"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "operation_id": { "$ref": "common.schema.json#/$defs/id" },
+        "check_id": { "$ref": "common.schema.json#/$defs/check_id" },
+        "result": { "$ref": "common.schema.json#/$defs/check_result" },
+        "note": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "operator_resolution_request": {
+      "description": "Operator-only. Records an operator's determination for an unknown operation after out-of-band inspection. The prior unknown history is preserved.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "execution_status", "note"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "execution_status": { "type": "string", "enum": ["completed", "failed", "partial"] },
+        "effects": { "type": "array", "maxItems": 1000, "items": { "$ref": "common.schema.json#/$defs/effect" } },
+        "note": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "action_list_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "actions"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "permitted", "requires_approval", "blockers"],
+            "properties": {
+              "action": { "$ref": "action.schema.json" },
+              "permitted": { "type": "boolean" },
+              "requires_approval": { "type": "boolean" },
+              "blockers": { "type": "array", "items": { "type": "string", "maxLength": 512 } }
+            }
+          }
+        }
+      }
+    },
+    "event_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "events", "next_after"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "events": { "type": "array", "items": { "$ref": "event.schema.json" } },
+        "next_after": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "verify_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "operation", "evidence"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "operation": { "$ref": "operation.schema.json" },
+        "evidence": { "type": "array", "items": { "$ref": "evidence.schema.json" } }
+      }
+    },
+    "reconcile_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "operation", "resolved", "resolution", "observations"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "operation": { "$ref": "operation.schema.json" },
+        "resolved": { "type": "boolean" },
+        "resolution": {
+          "type": "string",
+          "enum": ["already_final", "found_applied", "found_partial", "definitive_not_applied", "resubmitted_with_dedup", "still_unknown", "operator_resolution_required", "in_progress"]
+        },
+        "observations": { "type": "array", "maxItems": 64, "items": { "type": "object" } }
+      }
+    },
+    "recover_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "original_operation", "recovery_plan", "recovery_operation"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "original_operation": { "$ref": "operation.schema.json" },
+        "recovery_plan": { "$ref": "plan.schema.json" },
+        "recovery_operation": { "anyOf": [{ "$ref": "operation.schema.json" }, { "type": "null" }] }
+      }
+    },
+    "cancel_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "operation", "note"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "operation": { "$ref": "operation.schema.json" },
+        "note": { "type": "string" }
+      }
+    },
+    "receipt": {
+      "description": "Redacted, self-describing summary of one operation for agents and humans.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "operation_id", "task_id", "action_id", "outcome", "execution_status", "verification_status", "recovery_status", "unresolved", "effects", "checks", "unverified_effects", "recovery", "retry_guidance", "generated_at"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "operation_id": { "$ref": "common.schema.json#/$defs/id" },
+        "task_id": { "$ref": "common.schema.json#/$defs/id" },
+        "action_id": { "$ref": "common.schema.json#/$defs/action_id" },
+        "outcome": { "$ref": "common.schema.json#/$defs/outcome" },
+        "execution_status": { "$ref": "common.schema.json#/$defs/execution_status" },
+        "verification_status": { "$ref": "common.schema.json#/$defs/verification_status" },
+        "recovery_status": { "$ref": "common.schema.json#/$defs/recovery_status" },
+        "unresolved": { "type": "boolean" },
+        "effects": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/effect" } },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "result", "source", "source_version", "evidence_id", "observed_at", "item_index", "method"],
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/check_id" },
+              "result": { "type": "string", "enum": ["pass", "fail", "inconclusive", "missing"] },
+              "method": { "anyOf": [{ "$ref": "common.schema.json#/$defs/check_method" }, { "type": "null" }] },
+              "source": { "type": ["string", "null"] },
+              "source_version": { "$ref": "common.schema.json#/$defs/source_version" },
+              "evidence_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/id" }, { "type": "null" }] },
+              "observed_at": { "$ref": "common.schema.json#/$defs/nullable_timestamp" },
+              "item_index": { "type": ["integer", "null"] }
+            }
+          }
+        },
+        "unverified_effects": { "type": "array", "items": { "type": "string", "maxLength": 1024 } },
+        "recovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["modes", "available", "status", "recovery_operation_ids"],
+          "properties": {
+            "modes": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/recovery_mode" } },
+            "available": { "type": "boolean" },
+            "status": { "$ref": "common.schema.json#/$defs/recovery_status" },
+            "recovery_operation_ids": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/id" } }
+          }
+        },
+        "retry_guidance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["disposition", "explanation"],
+          "properties": {
+            "disposition": { "$ref": "common.schema.json#/$defs/retry_disposition" },
+            "explanation": { "type": "string", "maxLength": 1024 }
+          }
+        },
+        "generated_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "task_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "task_id", "contract_revision", "verified_complete", "reasons", "checks", "unresolved_operations", "evaluated_at"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "task_id": { "$ref": "common.schema.json#/$defs/id" },
+        "contract_revision": { "type": "integer", "minimum": 1 },
+        "verified_complete": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string", "maxLength": 1024 } },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check_id", "status", "evidence_id", "observed_at", "operation_id"],
+            "properties": {
+              "check_id": { "$ref": "common.schema.json#/$defs/check_id" },
+              "status": { "type": "string", "enum": ["pass", "fail", "inconclusive", "missing", "stale"] },
+              "evidence_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/id" }, { "type": "null" }] },
+              "observed_at": { "$ref": "common.schema.json#/$defs/nullable_timestamp" },
+              "operation_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/id" }, { "type": "null" }] }
+            }
+          }
+        },
+        "unresolved_operations": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/id" } },
+        "evaluated_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+      }
+    },
+    "info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "api_version", "supported_protocol_versions", "build", "auth_mode", "adapters", "limits"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "api_version": { "type": "string", "const": "v1" },
+        "supported_protocol_versions": { "type": "array", "items": { "type": "string" } },
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "commit", "image_digest"],
+          "properties": {
+            "version": { "type": "string" },
+            "commit": { "type": ["string", "null"] },
+            "image_digest": { "type": ["string", "null"] }
+          }
+        },
+        "auth_mode": { "type": "string", "enum": ["oidc", "demo"] },
+        "adapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "version", "provenance", "actions"],
+            "properties": {
+              "id": { "type": "string" },
+              "version": { "type": "string" },
+              "provenance": { "type": "string", "enum": ["built_in", "operator_configured"] },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["id", "risk_tier", "capabilities", "declared_profiles"],
+                  "properties": {
+                    "id": { "$ref": "common.schema.json#/$defs/action_id" },
+                    "risk_tier": { "$ref": "common.schema.json#/$defs/risk_tier" },
+                    "capabilities": { "$ref": "common.schema.json#/$defs/capability_vector" },
+                    "declared_profiles": {
+                      "description": "Profiles the action is designed to meet. Which profiles actually pass is published in the conformance report, not asserted here.",
+                      "type": "array",
+                      "items": { "type": "string", "enum": ["core", "verified", "recoverable"] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_request_bytes", "max_observation_bytes", "default_plan_ttl_seconds", "request_key_retention_seconds"],
+          "properties": {
+            "max_request_bytes": { "type": "integer" },
+            "max_observation_bytes": { "type": "integer" },
+            "default_plan_ttl_seconds": { "type": "integer" },
+            "request_key_retention_seconds": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "error_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "error"],
+      "properties": {
+        "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+        "error": { "$ref": "common.schema.json#/$defs/error" }
+      }
+    }
+  }
+}

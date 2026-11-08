@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/task.schema.json",
+  "title": "Task",
+  "description": "A working contract: goal, grant linkage, scope, requirements, assumptions and immutable required checks. Changing checks creates a new contract_revision; plans bound to an older revision become stale.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "id", "contract_revision", "goal", "owner", "grant_id", "scope", "requirements", "assumptions", "required_checks", "created_at", "revised_at"],
+  "properties": {
+    "protocol_version": { "$ref": "common.schema.json#/$defs/protocol_version" },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "contract_revision": { "type": "integer", "minimum": 1 },
+    "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "owner": { "$ref": "common.schema.json#/$defs/principal" },
+    "grant_id": { "$ref": "common.schema.json#/$defs/id" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "requirements": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/statement" } },
+    "assumptions": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/statement" } },
+    "required_checks": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/check" } },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "revised_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "extensions": { "$ref": "common.schema.json#/$defs/extensions" }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions", "resources"],
+      "properties": {
+        "actions": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/action_pattern" } },
+        "resources": { "type": "array", "maxItems": 64, "items": { "$ref": "common.schema.json#/$defs/resource_pattern" } }
+      }
+    },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "provenance"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/check_id" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "provenance": { "type": "string", "enum": ["user", "operator", "agent", "policy"] }
+      }
+    }
+  }
+}

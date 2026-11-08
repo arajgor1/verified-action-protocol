@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.vap.invalid/0.1/common.schema.json",
+  "title": "VAP common definitions",
+  "description": "Shared definitions for Verified Action Protocol 0.1. The .invalid host is a reserved, non-resolvable identifier namespace; schemas are distributed with the package, never fetched.",
+  "$defs": {
+    "protocol_version": { "type": "string", "const": "0.1" },
+    "id": { "type": "string", "pattern": "^[a-z]{2,8}_[A-Za-z0-9_-]{8,64}$", "maxLength": 80 },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 40 },
+    "nullable_timestamp": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+    "source_version": {
+      "description": "Version reported by the destination. Explicit null when the destination exposes none. A VAP runtime revision is never a destination version.",
+      "type": ["string", "null"],
+      "maxLength": 256
+    },
+    "principal": { "type": "string", "minLength": 1, "maxLength": 320 },
+    "resource_uri": {
+      "description": "Identifies an application object. Resolved only through registered adapters; never a permission grant or a fetchable URL.",
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^[a-z][a-z0-9+.-]{0,31}://[^\\s]{1,2000}$"
+    },
+    "resource_pattern": {
+      "description": "Resource URI prefix. A trailing * matches any suffix; otherwise exact match.",
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^[a-z][a-z0-9+.-]{0,31}://[^\\s]{0,2000}$"
+    },
+    "action_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$", "maxLength": 128 },
+    "action_pattern": { "type": "string", "pattern": "^([a-z][a-z0-9_]*(\\.[a-z0-9_]+)*(\\.\\*)?|\\*)$", "maxLength": 128 },
+    "check_id": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+    "short_text": { "type": "string", "maxLength": 1024 },
+    "extensions": {
+      "description": "Namespaced extension object. Keys are reverse-DNS style names such as com.example.feature. Extensions never alter security-critical semantics.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9-]+(\\.[a-z0-9_-]+)+$", "maxLength": 128 },
+      "maxProperties": 32
+    },
+    "side_effect_class": {
+      "type": "string",
+      "enum": ["none", "local_reversible", "remote_reversible", "compensable", "irreversible"]
+    },
+    "risk_tier": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "execution_status": {
+      "type": "string",
+      "enum": ["queued", "running", "completed", "failed", "partial", "unknown", "cancelled"]
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": ["not_requested", "pending", "passed", "failed", "inconclusive"]
+    },
+    "recovery_status": {
+      "type": "string",
+      "enum": ["none", "requested", "running", "succeeded", "failed", "unknown"]
+    },
+    "plan_status": {
+      "type": "string",
+      "enum": ["prepared", "awaiting_approval", "denied", "expired", "stale"]
+    },
+    "outcome": {
+      "description": "Derived, display-oriented summary of execution_status x verification_status. Never replaces the two underlying dimensions.",
+      "type": "string",
+      "enum": [
+        "requested",
+        "submitted",
+        "completed_unverified",
+        "verified",
+        "verification_failed",
+        "partially_applied",
+        "failed",
+        "cancelled",
+        "unknown"
+      ]
+    },
+    "check_method": { "type": "string", "enum": ["read_back", "test", "assertion", "trace", "human_judgment"] },
+    "check_result": { "type": "string", "enum": ["pass", "fail", "inconclusive"] },
+    "preview_fidelity": { "type": "string", "enum": ["exact", "sandbox", "estimate", "none"] },
+    "effect_status": { "type": "string", "enum": ["applied", "not_applied", "unknown"] },
+    "recovery_mode": { "type": "string", "enum": ["compensate", "restore_snapshot"] },
+    "retry_disposition": {
+      "type": "string",
+      "enum": ["safe_to_retry", "retry_with_same_key", "fix_request", "reconcile_first", "do_not_retry"]
+    },
+    "error_code": {
+      "type": "string",
+      "enum": [
+        "INVALID_ARGUMENT",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "NOT_FOUND",
+        "STALE_PLAN",
+        "PLAN_EXPIRED",
+        "APPROVAL_REQUIRED",
+        "KEY_REUSE_CONFLICT",
+        "REQUEST_KEY_EXPIRED",
+        "LIMIT_EXCEEDED",
+        "CAPABILITY_UNAVAILABLE",
+        "DESTINATION_UNAVAILABLE",
+        "OUTCOME_UNKNOWN",
+        "CONFLICT",
+        "UNSUPPORTED_PROTOCOL_VERSION",
+        "UNAVAILABLE",
+        "INTERNAL"
+      ]
+    },
+    "predicate": {
+      "description": "Bounded declarative predicate. Never an evaluated expression. Nesting depth is limited to 4 by the runtime.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op"],
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": ["eq", "neq", "in", "not_in", "exists", "not_exists", "range", "length_range", "all", "any"]
+        },
+        "path": { "type": "string", "maxLength": 512, "pattern": "^(/[^/]*)*$" },
+        "value": {},
+        "values": { "type": "array", "maxItems": 100 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "predicates": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/predicate" } }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "method", "verifier_id", "target", "predicate", "freshness", "deadline_seconds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/check_id" },
+        "description": { "$ref": "#/$defs/short_text" },
+        "method": { "$ref": "#/$defs/check_method" },
+        "verifier_id": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+        "target": {
+          "description": "Resource URI or template. Placeholders {result.<field>} and {args.<field>} are substituted from the operation's projected result and canonical arguments; no other expansion exists.",
+          "type": "string",
+          "maxLength": 2048
+        },
+        "predicate": { "$ref": "#/$defs/predicate" },
+        "scope": { "type": "string", "enum": ["single", "each_effect"], "default": "single" },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_age_seconds"],
+          "properties": { "max_age_seconds": { "type": "integer", "minimum": 1, "maximum": 2592000 } }
+        },
+        "deadline_seconds": { "type": "integer", "minimum": 1, "maximum": 900 },
+        "authorization_scope": { "type": ["string", "null"], "maxLength": 256 },
+        "provenance": { "type": "string", "enum": ["user", "operator", "agent", "action_default"], "default": "user" }
+      }
+    },
+    "capability_vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state_source",
+        "concurrency_mode",
+        "preview_fidelity",
+        "retry_mode",
+        "recovery_modes",
+        "verification_methods",
+        "attribution_mode",
+        "execution_isolation"
+      ],
+      "properties": {
+        "state_source": {
+          "type": "string",
+          "enum": ["authoritative_api", "eventually_consistent_api", "dom", "filesystem", "process", "unavailable"]
+        },
+        "concurrency_mode": { "type": "string", "enum": ["native_conditional", "best_effort", "none", "unavailable"] },
+        "preview_fidelity": { "$ref": "#/$defs/preview_fidelity" },
+        "retry_mode": {
+          "type": "string",
+          "enum": ["destination_dedup", "lookup_then_retry", "no_automatic_retry", "unavailable"]
+        },
+        "recovery_modes": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/recovery_mode" } },
+        "verification_methods": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/check_method" } },
+        "attribution_mode": {
+          "type": "string",
+          "enum": ["explicit_request_id", "temporal_inference", "process_identity", "none"]
+        },
+        "execution_isolation": {
+          "type": "string",
+          "enum": ["none", "browser_context", "workspace_directory", "process_group"]
+        }
+      }
+    },
+    "side_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "class", "bounded"],
+      "properties": {
+        "id": { "$ref": "#/$defs/check_id" },
+        "description": { "$ref": "#/$defs/short_text" },
+        "class": { "$ref": "#/$defs/side_effect_class" },
+        "bounded": { "type": "boolean", "description": "True when the adapter can enforce item/row caps before dispatch." }
+      }
+    },
+    "effect": {
+      "description": "An observed or reported effect of an operation. One record per side effect and, for batches, per item.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["side_effect_id", "status"],
+      "properties": {
+        "side_effect_id": { "$ref": "#/$defs/check_id" },
+        "item_index": { "type": ["integer", "null"], "minimum": 0 },
+        "resource_uri": { "anyOf": [{ "$ref": "#/$defs/resource_uri" }, { "type": "null" }] },
+        "status": { "$ref": "#/$defs/effect_status" },
+        "source_version": { "$ref": "#/$defs/source_version" },
+        "detail": { "type": ["string", "null"], "maxLength": 1024 }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retry_disposition"],
+      "properties": {
+        "code": { "$ref": "#/$defs/error_code" },
+        "message": { "type": "string", "maxLength": 2048 },
+        "retry_disposition": { "$ref": "#/$defs/retry_disposition" },
+        "operation_id": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "details": { "type": "object", "maxProperties": 32 },
+        "evidence_refs": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/id" } }
+      }
+    }
+  }
+}

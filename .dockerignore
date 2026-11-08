@@ -1,0 +1,16 @@
+# Build context is allowlist-only: everything is excluded unless re-included below.
+*
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!tsconfig.build.json
+!packages/**
+!apps/**
+!fixtures/**
+!examples/**
+!LICENSE
+!NOTICE
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.env*

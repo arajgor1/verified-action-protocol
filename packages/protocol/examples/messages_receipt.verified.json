@@ -1,0 +1,47 @@
+{
+  "protocol_version": "0.1",
+  "operation_id": "op_demo0000000000000001",
+  "task_id": "tsk_demo0000000000000001",
+  "action_id": "issues.update_owner",
+  "outcome": "verified",
+  "execution_status": "completed",
+  "verification_status": "passed",
+  "recovery_status": "none",
+  "unresolved": false,
+  "effects": [
+    {
+      "side_effect_id": "owner_changed",
+      "item_index": null,
+      "resource_uri": "issue://issue-tracker/issues/1001",
+      "status": "applied",
+      "source_version": "18",
+      "detail": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "owner_matches",
+      "result": "pass",
+      "method": "read_back",
+      "source": "http.issue_tracker:readback",
+      "source_version": "18",
+      "evidence_id": "evd_demo0000000000000001",
+      "observed_at": "2026-10-22T14:00:02.500Z",
+      "item_index": null
+    }
+  ],
+  "unverified_effects": [],
+  "recovery": {
+    "modes": [
+      "compensate"
+    ],
+    "available": true,
+    "status": "none",
+    "recovery_operation_ids": []
+  },
+  "retry_guidance": {
+    "disposition": "do_not_retry",
+    "explanation": "Completed and every bound check passed."
+  },
+  "generated_at": "2026-10-22T14:00:02.500Z"
+}

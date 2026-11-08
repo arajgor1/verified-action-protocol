@@ -1,0 +1,762 @@
+{
+  "$comment": "Reference adapter configuration for the synthetic issue-tracker fixture. Origins are overridden per deployment with VAP_CONNECTOR_<NAME>_ORIGIN and VAP_BROWSER_ORIGIN. Contains no credentials.",
+  "http": [
+    {
+      "id": "http.issue_tracker",
+      "version": "0.1.0",
+      "verifier_id": "http.readback",
+      "connectors": {
+        "issue_tracker": {
+          "origin": "http://127.0.0.1:8081",
+          "timeout_ms": 10000,
+          "allow_private_network": true,
+          "auth": {
+            "type": "none"
+          }
+        }
+      },
+      "resources": [
+        {
+          "uri_template": "issue://issue-tracker/issues/{id}",
+          "connector": "issue_tracker",
+          "read_path": "/issues/{args.id}",
+          "version": {
+            "header": "etag",
+            "pointer": "/version"
+          },
+          "projection": [
+            "/id",
+            "/title",
+            "/owner",
+            "/status",
+            "/priority",
+            "/version"
+          ],
+          "state_source": "eventually_consistent_api"
+        }
+      ],
+      "actions": [
+        {
+          "id": "issues.create",
+          "title": "Create an issue",
+          "connector": "issue_tracker",
+          "method": "POST",
+          "path": "/issues",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "owner"
+            ],
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "owner": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            }
+          },
+          "body_fields": [
+            "title",
+            "owner",
+            "priority"
+          ],
+          "effect_scope": {
+            "resource_template": "issue://issue-tracker/issues/{result.id}",
+            "description": "one new issue"
+          },
+          "side_effects": [
+            {
+              "id": "issue_created",
+              "description": "issue record created",
+              "class": "compensable",
+              "bounded": true
+            }
+          ],
+          "request_key_header": "Idempotency-Key",
+          "lookup": {
+            "path": "/requests/{request.key}",
+            "query": {
+              "seal": "1"
+            },
+            "definitive_not_found": true,
+            "status_pointer": "/status",
+            "applied_values": [
+              "applied"
+            ],
+            "rejected_values": [
+              "rejected"
+            ],
+            "response_pointer": "/response/body"
+          },
+          "response": {
+            "projection": [
+              "/id",
+              "/version",
+              "/title",
+              "/owner",
+              "/status"
+            ],
+            "effects": [
+              {
+                "side_effect_id": "issue_created",
+                "resource_template": "issue://issue-tracker/issues/{result.id}",
+                "version_pointer": "/version"
+              }
+            ]
+          },
+          "recovery": [
+            {
+              "mode": "compensate",
+              "action_id": "issues.close",
+              "description": "close the created issue",
+              "arguments": {
+                "issue_ids": {
+                  "from": "applied_items",
+                  "field": "id"
+                }
+              },
+              "uncovered_effects": [
+                "the issue record remains in history as closed; it is not deleted"
+              ],
+              "checks": [
+                {
+                  "id": "compensation_closed",
+                  "method": "read_back",
+                  "verifier_id": "http.readback",
+                  "target": "{effect.resource_uri}",
+                  "scope": "each_effect",
+                  "predicate": {
+                    "op": "eq",
+                    "path": "/status",
+                    "value": "closed"
+                  },
+                  "freshness": {
+                    "max_age_seconds": 3600
+                  },
+                  "deadline_seconds": 20
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "issues.create_and_notify",
+          "title": "Create an issue and notify the owner",
+          "connector": "issue_tracker",
+          "method": "POST",
+          "path": "/issues",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "owner",
+              "notify"
+            ],
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "owner": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+              },
+              "notify": {
+                "type": "boolean",
+                "const": true
+              }
+            }
+          },
+          "body_fields": [
+            "title",
+            "owner",
+            "notify"
+          ],
+          "effect_scope": {
+            "resource_template": "issue://issue-tracker/issues/{result.id}",
+            "description": "one new issue plus an owner notification"
+          },
+          "side_effects": [
+            {
+              "id": "issue_created",
+              "description": "issue record created",
+              "class": "compensable",
+              "bounded": true
+            },
+            {
+              "id": "notification_sent",
+              "description": "external notification delivery",
+              "class": "irreversible",
+              "bounded": true
+            }
+          ],
+          "request_key_header": "Idempotency-Key",
+          "lookup": {
+            "path": "/requests/{request.key}",
+            "query": {
+              "seal": "1"
+            },
+            "definitive_not_found": true,
+            "status_pointer": "/status",
+            "applied_values": [
+              "applied"
+            ],
+            "rejected_values": [
+              "rejected"
+            ],
+            "response_pointer": "/response/body"
+          },
+          "response": {
+            "projection": [
+              "/id",
+              "/version",
+              "/title",
+              "/owner",
+              "/status"
+            ],
+            "effects": [
+              {
+                "side_effect_id": "issue_created",
+                "resource_template": "issue://issue-tracker/issues/{result.id}",
+                "version_pointer": "/version"
+              }
+            ]
+          },
+          "recovery": [
+            {
+              "mode": "compensate",
+              "action_id": "issues.close",
+              "description": "close the created issue; the notification cannot be recalled",
+              "arguments": {
+                "issue_ids": {
+                  "from": "applied_items",
+                  "field": "id"
+                }
+              },
+              "uncovered_effects": [
+                "external notification delivery cannot be recalled"
+              ],
+              "checks": [
+                {
+                  "id": "compensation_closed",
+                  "method": "read_back",
+                  "verifier_id": "http.readback",
+                  "target": "{effect.resource_uri}",
+                  "scope": "each_effect",
+                  "predicate": {
+                    "op": "eq",
+                    "path": "/status",
+                    "value": "closed"
+                  },
+                  "freshness": {
+                    "max_age_seconds": 3600
+                  },
+                  "deadline_seconds": 20
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "issues.update_owner",
+          "title": "Change an issue's owner (native conditional write)",
+          "connector": "issue_tracker",
+          "method": "PATCH",
+          "path": "/issues/{args.issue_id}",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "issue_id",
+              "owner"
+            ],
+            "properties": {
+              "issue_id": {
+                "type": "string",
+                "pattern": "^[0-9]{1,18}$"
+              },
+              "owner": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+              }
+            }
+          },
+          "body_fields": [
+            "owner"
+          ],
+          "effect_scope": {
+            "resource_template": "issue://issue-tracker/issues/{args.issue_id}",
+            "description": "the issue's owner field"
+          },
+          "side_effects": [
+            {
+              "id": "owner_changed",
+              "description": "issue owner updated",
+              "class": "remote_reversible",
+              "bounded": true
+            }
+          ],
+          "conditional_write": {
+            "resource": "issue://issue-tracker/issues/{args.issue_id}",
+            "mode": "native",
+            "header": "If-Match"
+          },
+          "request_key_header": "Idempotency-Key",
+          "lookup": {
+            "path": "/requests/{request.key}",
+            "query": {
+              "seal": "1"
+            },
+            "definitive_not_found": true,
+            "status_pointer": "/status",
+            "applied_values": [
+              "applied"
+            ],
+            "rejected_values": [
+              "rejected"
+            ],
+            "response_pointer": "/response/body"
+          },
+          "response": {
+            "projection": [
+              "/id",
+              "/owner",
+              "/status",
+              "/version"
+            ],
+            "effects": [
+              {
+                "side_effect_id": "owner_changed",
+                "resource_template": "issue://issue-tracker/issues/{result.id}",
+                "version_pointer": "/version"
+              }
+            ]
+          },
+          "recovery": [
+            {
+              "mode": "compensate",
+              "action_id": "issues.update_owner",
+              "description": "set the owner back to the value captured at preparation",
+              "arguments": {
+                "issue_id": {
+                  "from": "args",
+                  "field": "issue_id"
+                },
+                "owner": {
+                  "from": "prior",
+                  "pointer": "/owner"
+                }
+              },
+              "uncovered_effects": [],
+              "checks": [
+                {
+                  "id": "owner_restored",
+                  "method": "read_back",
+                  "verifier_id": "http.readback",
+                  "target": "issue://issue-tracker/issues/{args.issue_id}",
+                  "predicate": {
+                    "op": "eq",
+                    "path": "/owner",
+                    "value_from": {
+                      "from": "prior",
+                      "pointer": "/owner"
+                    }
+                  },
+                  "freshness": {
+                    "max_age_seconds": 3600
+                  },
+                  "deadline_seconds": 20
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "issues.update_owner_best_effort",
+          "title": "Change an issue's owner (best-effort concurrency)",
+          "description": "Re-reads the version and then writes unconditionally. A concurrent writer can interleave; this action does not claim protection.",
+          "connector": "issue_tracker",
+          "method": "PATCH",
+          "path": "/issues/{args.issue_id}",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "issue_id",
+              "owner"
+            ],
+            "properties": {
+              "issue_id": {
+                "type": "string",
+                "pattern": "^[0-9]{1,18}$"
+              },
+              "owner": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+              }
+            }
+          },
+          "body_fields": [
+            "owner"
+          ],
+          "effect_scope": {
+            "resource_template": "issue://issue-tracker/issues/{args.issue_id}",
+            "description": "the issue's owner field"
+          },
+          "side_effects": [
+            {
+              "id": "owner_changed",
+              "description": "issue owner updated",
+              "class": "remote_reversible",
+              "bounded": true
+            }
+          ],
+          "conditional_write": {
+            "resource": "issue://issue-tracker/issues/{args.issue_id}",
+            "mode": "best_effort"
+          },
+          "response": {
+            "projection": [
+              "/id",
+              "/owner",
+              "/status",
+              "/version"
+            ],
+            "effects": [
+              {
+                "side_effect_id": "owner_changed",
+                "resource_template": "issue://issue-tracker/issues/{result.id}",
+                "version_pointer": "/version"
+              }
+            ]
+          }
+        },
+        {
+          "id": "issues.batch_create",
+          "title": "Create a bounded batch of issues",
+          "connector": "issue_tracker",
+          "method": "POST",
+          "path": "/issues/batch",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "title",
+                    "owner"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "owner": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "body_fields": [
+            "items"
+          ],
+          "items_field": "items",
+          "max_items": 20,
+          "effect_scope": {
+            "resource_template": "issue://issue-tracker/issues/{item.id}",
+            "description": "one new issue per item"
+          },
+          "side_effects": [
+            {
+              "id": "issue_created",
+              "description": "issue record created (per item)",
+              "class": "compensable",
+              "bounded": true
+            }
+          ],
+          "request_key_header": "Idempotency-Key",
+          "lookup": {
+            "path": "/requests/{request.key}",
+            "query": {
+              "seal": "1"
+            },
+            "definitive_not_found": true,
+            "status_pointer": "/status",
+            "applied_values": [
+              "applied"
+            ],
+            "rejected_values": [
+              "rejected"
+            ],
+            "response_pointer": "/response/body"
+          },
+          "response": {
+            "projection": [],
+            "effects": [
+              {
+                "side_effect_id": "issue_created",
+                "items_pointer": "/items",
+                "item_status_pointer": "/status",
+                "item_applied_values": [
+                  "applied"
+                ],
+                "item_resource_template": "issue://issue-tracker/issues/{item.id}",
+                "item_version_pointer": "/version"
+              }
+            ]
+          },
+          "recovery": [
+            {
+              "mode": "compensate",
+              "action_id": "issues.close",
+              "description": "close exactly the issues this batch created",
+              "arguments": {
+                "issue_ids": {
+                  "from": "applied_items",
+                  "field": "id"
+                }
+              },
+              "uncovered_effects": [
+                "closed issues remain in history; they are not deleted"
+              ],
+              "checks": [
+                {
+                  "id": "compensation_closed",
+                  "method": "read_back",
+                  "verifier_id": "http.readback",
+                  "target": "{effect.resource_uri}",
+                  "scope": "each_effect",
+                  "predicate": {
+                    "op": "eq",
+                    "path": "/status",
+                    "value": "closed"
+                  },
+                  "freshness": {
+                    "max_age_seconds": 3600
+                  },
+                  "deadline_seconds": 20
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "issues.close",
+          "title": "Close issues",
+          "connector": "issue_tracker",
+          "method": "POST",
+          "path": "/issues/close",
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "issue_ids"
+            ],
+            "properties": {
+              "issue_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,18}$"
+                }
+              }
+            }
+          },
+          "body_fields": [
+            "issue_ids"
+          ],
+          "items_field": "issue_ids",
+          "max_items": 50,
+          "effect_scope": {
+            "resource_template": "issue://issue-tracker/issues/{item.id}",
+            "description": "the listed issues' status"
+          },
+          "side_effects": [
+            {
+              "id": "issue_closed",
+              "description": "issue status set to closed",
+              "class": "remote_reversible",
+              "bounded": true
+            }
+          ],
+          "request_key_header": "Idempotency-Key",
+          "lookup": {
+            "path": "/requests/{request.key}",
+            "query": {
+              "seal": "1"
+            },
+            "definitive_not_found": true,
+            "status_pointer": "/status",
+            "applied_values": [
+              "applied"
+            ],
+            "rejected_values": [
+              "rejected"
+            ],
+            "response_pointer": "/response/body"
+          },
+          "response": {
+            "projection": [],
+            "effects": [
+              {
+                "side_effect_id": "issue_closed",
+                "items_pointer": "/items",
+                "item_status_pointer": "/status",
+                "item_applied_values": [
+                  "applied"
+                ],
+                "item_resource_template": "issue://issue-tracker/issues/{item.id}",
+                "item_version_pointer": "/version"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "cli": {
+    "id": "cli.fixtures",
+    "version": "0.1.0",
+    "workspace_root": "/tmp/vap-workspaces",
+    "template_dir": "../../fixtures/cli/workspace-template",
+    "recipes": [
+      {
+        "id": "cli.write_file",
+        "title": "Write a file in the workspace",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/write-file.mjs",
+        "args": [
+          {
+            "param": "path",
+            "type": "relative_path"
+          },
+          {
+            "param": "content",
+            "type": "string",
+            "max_length": 4096
+          }
+        ],
+        "timeout_ms": 10000,
+        "output_parser": "json_lines"
+      },
+      {
+        "id": "cli.big_output",
+        "title": "Emit large output",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/big-output.mjs",
+        "args": [
+          {
+            "param": "bytes",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000000
+          }
+        ],
+        "timeout_ms": 20000
+      },
+      {
+        "id": "cli.wait_for_input",
+        "title": "Run a command that asks for confirmation",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/wait-input.mjs",
+        "args": [],
+        "timeout_ms": 10000,
+        "input_markers": [
+          "VAP_INPUT_REQUIRED"
+        ]
+      },
+      {
+        "id": "cli.spawn_child",
+        "title": "Run a command that leaves a child running",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/spawn-child.mjs",
+        "args": [],
+        "timeout_ms": 10000
+      },
+      {
+        "id": "cli.sleep",
+        "title": "Sleep (timeout fixture)",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/sleep.mjs",
+        "args": [
+          {
+            "param": "ms",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600000
+          }
+        ],
+        "timeout_ms": 2000
+      },
+      {
+        "id": "cli.fail_after_write",
+        "title": "Fail after a partial write",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/fail-after-write.mjs",
+        "args": [],
+        "timeout_ms": 10000
+      },
+      {
+        "id": "cli.print_canary",
+        "title": "Print synthetic canaries (leakage fixture)",
+        "executable": "node",
+        "script": "../../fixtures/cli/bin/print-canary.mjs",
+        "args": [],
+        "timeout_ms": 10000
+      }
+    ]
+  },
+  "browser": {
+    "id": "browser.fixture",
+    "version": "0.1.0",
+    "origin": "http://127.0.0.1:8081",
+    "resource_prefix": "browser://issue-tracker/",
+    "observable_paths": [
+      "/form"
+    ],
+    "allow_private_network": true,
+    "recipes": [
+      {
+        "id": "browser.issues.create_via_form",
+        "title": "Create an issue through the web form",
+        "kind": "issue_form_submit",
+        "form_path": "/form",
+        "lookup_path": "/requests/{request.key}?seal=1",
+        "resource_template": "issue://issue-tracker/issues/{result.id}",
+        "timeout_ms": 20000,
+        "verifier_ids": [
+          "http.readback",
+          "browser.page_readback"
+        ]
+      }
+    ]
+  }
+}

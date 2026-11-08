@@ -1,0 +1,27 @@
+{
+  "protocol_version": "0.1",
+  "id": "evd_demo0000000000000002",
+  "operation_id": "op_demo0000000000000001",
+  "task_id": "tsk_demo0000000000000001",
+  "task_revision": 1,
+  "check_id": "tone_acceptable",
+  "item_index": null,
+  "verifier_id": "human.review",
+  "verifier_version": "human",
+  "method": "human_judgment",
+  "observed_at": "2026-10-22T14:00:02.500Z",
+  "result": "pass",
+  "source": "human",
+  "source_version": null,
+  "freshness": "unknown",
+  "observed_facts": {
+    "note": "Reviewed the issue text; wording is acceptable."
+  },
+  "artifact_ref": null,
+  "limitations": [
+    "human judgment: attributed opinion, not deterministic verification"
+  ],
+  "attributed_to": "reviewer@example.com",
+  "independence": "human",
+  "created_at": "2026-10-22T14:00:02.500Z"
+}

@@ -1,0 +1,153 @@
+# VAP test pipeline. All dependency installation, builds, tests, browser runs and benchmarks
+# for release gates execute here, in Cloud Build containers. Submitted by `vap cloud test`
+# with an allowlisted `git archive` of an exact commit as the source.
+#
+# Required substitutions: _RUN_ID, _COMMIT_SHA, _SUITE (unit|integration|browser|demo|all),
+# _EVIDENCE_BUCKET (private bucket for sanitized run evidence).
+substitutions:
+  _RUN_ID: manual
+  _COMMIT_SHA: unknown
+  _SUITE: all
+  _EVIDENCE_BUCKET: set-by-operator
+  _NODE: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+  _POSTGRES: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+  _DOCKER: gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  env:
+    - VAP_CLOUD_EXECUTION=1
+    - VAP_PRIVATE_LITERALS=${PROJECT_ID},${PROJECT_NUMBER}
+    - VAP_RUN_ID=${_RUN_ID}
+    - COMMIT_SHA=${_COMMIT_SHA}
+    - NPM_CONFIG_UPDATE_NOTIFIER=false
+    - NPM_CONFIG_FUND=false
+
+timeout: 3600s
+
+tags: ["vap", "vap-test", "run-${_RUN_ID}"]
+
+steps:
+  - id: source-hygiene
+    name: ${_NODE}
+    entrypoint: node
+    args: ["scripts/release-hygiene.mjs", "--tree", "."]
+
+  - id: postgres
+    name: ${_DOCKER}
+    args:
+      - run
+      - -d
+      - --network=cloudbuild
+      - --name=vap-pg
+      - --label=vap-run=${_RUN_ID}
+      # Disposable database inside the build network only; no credential is involved.
+      - -e
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - ${_POSTGRES}
+      - -c
+      - max_connections=300
+
+  - id: install
+    name: ${_NODE}
+    entrypoint: npm
+    args: ["ci", "--ignore-scripts"]
+
+  - id: build
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "npm run build && npm run typecheck"]
+
+  - id: exit-propagation
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["scripts/check-exit-propagation.sh"]
+
+  - id: unit
+    name: ${_NODE}
+    entrypoint: bash
+    args: ["-c", "mkdir -p reports && npm run test:unit 2>&1 | tee reports/unit.log; exit $${PIPESTATUS[0]}"]
+
+  - id: wait-postgres
+    name: ${_POSTGRES}
+    entrypoint: bash
+    args: ["-c", "for i in $$(seq 1 60); do pg_isready -h vap-pg -U postgres && exit 0; sleep 1; done; exit 1"]
+
+  - id: integration
+    name: ${_NODE}
+    entrypoint: bash
+    env:
+      - VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres
+      - VAP_REPORT_DIR=/workspace/reports
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        case "${_SUITE}" in unit|browser|demo) echo "skipped for suite ${_SUITE}"; exit 0;; esac
+        npm run test:integration 2>&1 | tee reports/integration.log
+
+  - id: browser
+    name: ${_NODE}
+    entrypoint: bash
+    env:
+      - VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres
+      - VAP_REPORT_DIR=/workspace/reports
+      - PLAYWRIGHT_BROWSERS_PATH=/workspace/.ms-playwright
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        case "${_SUITE}" in unit|integration|demo) echo "skipped for suite ${_SUITE}"; exit 0;; esac
+        node node_modules/playwright/cli.js install --with-deps chromium
+        npm run test:browser 2>&1 | tee reports/browser.log
+
+  - id: demo
+    name: ${_NODE}
+    entrypoint: bash
+    env:
+      - VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres
+      - VAP_REPORT_DIR=/workspace/reports
+      - BUILD_ID=$BUILD_ID
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        case "${_SUITE}" in demo|all) ;; *) echo "skipped for suite ${_SUITE}"; exit 0;; esac
+        npm run test:demo 2>&1 | tee reports/demo.log
+        [ "${_SUITE}" = "demo" ] || exit 0
+        node demo/ci-failure/run-demo.ts --out reports 2>&1 | tee reports/ci-demo-run.log
+        node benchmarks/ci-demo/run.ts --repeats 5 --out reports 2>&1 | tee reports/ci-demo-bench.log
+
+  - id: benchmark
+    name: ${_NODE}
+    entrypoint: bash
+    env:
+      - VAP_TEST_ADMIN_URL=postgres://postgres@vap-pg:5432/postgres
+      - VAP_REPORT_DIR=/workspace/reports
+      - BUILD_ID=$BUILD_ID
+    args:
+      - -c
+      - |
+        set -eo pipefail
+        [ "${_SUITE}" = "all" ] || { echo "benchmark runs with suite all"; exit 0; }
+        node benchmarks/run.ts --repeats 5 --out reports 2>&1 | tee reports/benchmark.log
+
+  - id: evidence
+    name: ${_NODE}
+    entrypoint: node
+    env:
+      - BUILD_ID=$BUILD_ID
+      - VAP_SUITE=${_SUITE}
+    args: ["scripts/evidence.mjs", "reports"]
+
+  - id: teardown
+    name: ${_DOCKER}
+    entrypoint: bash
+    args: ["-c", "docker rm -f vap-pg >/dev/null 2>&1 || true"]
+
+artifacts:
+  objects:
+    location: gs://${_EVIDENCE_BUCKET}/runs/${_RUN_ID}/
+    paths: ["reports/*"]

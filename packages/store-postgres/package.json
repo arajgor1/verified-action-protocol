@@ -1,0 +1,17 @@
+{
+  "name": "@verified-action-protocol/store-postgres",
+  "version": "0.1.0-rc.1",
+  "description": "PostgreSQL journal, outbox, claims and migrations for VAP",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "migrations"],
+  "bin": { "vap-migrate": "./dist/migrate-cli.js" },
+  "dependencies": {
+    "@verified-action-protocol/core": "0.1.0-rc.1",
+    "@verified-action-protocol/protocol": "0.1.0-rc.1",
+    "pg": "8.23.1"
+  }
+}

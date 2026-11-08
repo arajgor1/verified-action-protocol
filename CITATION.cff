@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use VAP in your work, please cite it using these metadata."
+type: software
+title: "VAP: Verified Action Protocol"
+abstract: >-
+  An experimental runtime and protocol between AI agents and the tools they act on. Agents see
+  which actions are available, get a plan before anything runs, and receive evidence of what
+  actually happened. A lost tool response is reconciled by looking the write up at the
+  destination instead of retrying it blindly.
+authors:
+  - given-names: Aaditya
+    family-names: Rajgor
+    orcid: "https://orcid.org/0009-0006-3009-5559"
+repository-code: "https://github.com/arajgor1/verified-action-protocol"
+license: Apache-2.0
+version: 0.1.0-rc.1
+keywords:
+  - ai-agents
+  - tool-calling
+  - model-context-protocol
+  - verification
+  - idempotency
+  - reliability

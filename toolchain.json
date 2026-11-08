@@ -1,0 +1,24 @@
+{
+  "$comment": "Pinned toolchain for VAP v0.1 (milestone M0). Images are pinned by digest; npm dependencies by exact version and the frozen lockfile. Versions were chosen to be at least two weeks old on 2026-10-22.",
+  "node": { "version": "24.21.0", "line": "24 LTS" },
+  "package_manager": { "name": "npm", "version": "11.6.4", "lockfile": "package-lock.json", "install": "npm ci --ignore-scripts" },
+  "typescript": "5.9.3",
+  "json_schema": { "draft": "2020-12", "validator": "ajv@8.20.0", "formats": "ajv-formats@3.0.1" },
+  "postgres": { "server": "17.6", "client": "pg@8.23.1" },
+  "mcp": { "sdk": "@modelcontextprotocol/sdk@1.32.1", "transport": "stdio", "protocol_revision": "2025-11-25 (SDK LATEST_PROTOCOL_VERSION, recorded by tests/mcp)" },
+  "browser": { "playwright": "1.63.0", "browser": "chromium (installed by the pinned Playwright CLI)" },
+  "images": {
+    "node_slim": "node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20",
+    "node_full": "node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0",
+    "postgres": "postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3",
+    "docker_builder": "gcr.io/cloud-builders/docker@sha256:0aca0f95e1ba8f9107263d3e9782d5ce99a5b60d35b3f8985e4534b65552636f",
+    "gcloud": "gcr.io/google.com/cloudsdktool/google-cloud-cli:563.0.0-slim@sha256:fa5e64b16a2ec1679c7c08a69b3ca8a588d3b042b602b69667f4d30eb49f2bcf",
+    "trivy": "aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa"
+  },
+  "github_actions": {
+    "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "google-github-actions/auth": "7c6bc770dae815cd3e89ee6cdf493a5fab2cc093",
+    "google-github-actions/setup-gcloud": "aa5489c8933f4cc7a4f7d45035b3b1440c9c10db"
+  },
+  "cloud": { "canonical": "gcp", "build": "Cloud Build", "registry": "Artifact Registry", "runtime": "Cloud Run service + jobs", "database": "Cloud SQL for PostgreSQL 17", "scheduler": "Cloud Scheduler" }
+}
